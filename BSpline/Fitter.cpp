@@ -1,6 +1,5 @@
 #include "Fitter.h"
 
-#include <iostream>
 #include <vector>
 #include <Eigen/Dense>
 
@@ -110,32 +109,36 @@ vector<vec3> Fitter::interpolateCurve(int p,
 			N(i, j) = (coefficients[j]);
 		}
 	}
-	Eigen::MatrixXd D(n + 1, 3), P = Eigen::MatrixXd::Zero(n - p + 1, 3);
-	Eigen::MatrixXd M = Eigen::MatrixXd::Zero(n + 1, n - p + 1);
+	Eigen::MatrixXd D(n + 1, 3);
 	for (int i = 0; i <= n; ++i) {
 		D(i, 0) = dataPoints[i][0];
 		D(i, 1) = dataPoints[i][1];
 		D(i, 2) = dataPoints[i][2];
 	}
+	Eigen::MatrixXd P = Eigen::MatrixXd::Zero(n - p + 1, 3);
+	Eigen::MatrixXd M = Eigen::MatrixXd::Zero(n + 1, n - p + 1);
 	for (int i = 0; i <= n - p; ++i) {
 		M(i, i) = 1;
 	}
 	for (int i = 1; i <= p; ++i) {
 		M(n - p + i, i - 1) = 1;
 	}
-
-	auto T = N * M;
-	Eigen::MatrixXd U(n - p + 1, n - p + 1);
 	
-	P = T.colPivHouseholderQr().solve(D);
-	cout << D << endl << endl << (T * P) << endl;
-
+	P = (N * M).colPivHouseholderQr().solve(D);
+	
 	for (int i = 0; i <= n - p; ++i) {
 		controlPoints.emplace_back(P(i, 0), P(i, 1), P(i, 2));
 	}
 	for (int i = 0; i <= p - 1; ++i) {
 		controlPoints.emplace_back(P(i, 0), P(i, 1), P(i, 2));
 	}
+	//
+	// Eigen::MatrixXd P = Eigen::MatrixXd::Zero(n + 1, 3);
+	// P = N.colPivHouseholderQr().solve(D);
+	// for (int i = 0; i <= n; ++i) {
+	// 	controlPoints.emplace_back(P(i, 0), P(i, 1), P(i, 2));
+	// }
+	//
 	return controlPoints;
 }
 

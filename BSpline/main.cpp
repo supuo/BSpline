@@ -23,71 +23,15 @@ namespace {
 	BSplineSurface* bspS = nullptr;
 
 	bool change = true;
-	const double step = 0.05;
+	const double step = 0.01;
 	unsigned vao[4], vbo[3], ebo[4], indexSize[4];
 
 	double lastX;
 	double lastY;
 	bool firstMouse = true;
-	Camera camera(vec3(0, 0, 5));
+	Camera camera(vec3(0, 0, 3));
 
 	double err = 1e-8;
-}
-
-void mouseCallback(GLFWwindow* window, double xpos, double ypos);
-void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
-void processInput(GLFWwindow* window);
-void render(const Shader& shader);
-void generateCircle(int n);
-void generateSphere(int m, int n);
-void generateCylinder(int m, int n);
-void drawSurface();
-void drawCurve();
-
-int main() {
-	glfwInit();
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
-	GLFWwindow* window = glfwCreateWindow(width, height, "BSpline surface fit", nullptr, nullptr);
-	if (window == nullptr) {
-		std::cout << "Failed to create GLFW window" << std::endl;
-		glfwTerminate();
-		return -1;
-	}
-	glfwMakeContextCurrent(window);
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-	glfwSetCursorPosCallback(window, mouseCallback);
-	glfwSetScrollCallback(window, scrollCallback);
-
-	if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress))) {
-		std::cout << "Failed to initialize GLAD" << std::endl;
-		return -1;
-	}
-	glViewport(0, 0, width, height);
-	glEnable(GL_DEPTH_TEST);
-	glGenVertexArrays(4, vao);
-	glGenBuffers(3, vbo);
-	glGenBuffers(4, ebo);
-	glPointSize(5);
-	Shader shader("shader.vert", "shader.frag");
-	generateCircle(20);
-	// generateCylinder(5, 5);
-	generateSphere(10, 10);
-	while (!glfwWindowShouldClose(window)) {
-		glfwPollEvents();
-		processInput(window);
-		if (change) {
-			change = false;
-			drawCurve();
-			// drawSurface();
-		}
-		render(shader);
-		glfwSwapBuffers(window);
-	}
-	glfwTerminate();
-	return 0;
 }
 
 void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
@@ -168,11 +112,11 @@ void generateCircle(int n) {
 	}
 }
 
-void generateSphere(int m, int n) {
+void generateSphere(int n) {
 	double radius = 0.5;
-	double phiStep = 180. / m;
+	double phiStep = 360. / n;
 	double thetaStep = 360. / n;
-	for (int i = 0; i <= m; ++i) {
+	for (int i = 0; i <= n; ++i) {
 		vector<vec3> row;
 		double phi = glm::radians(phiStep * i);
 		for (int j = 0; j <= n; ++j) {
@@ -183,10 +127,10 @@ void generateSphere(int m, int n) {
 	}
 }
 
-void generateCylinder(int m, int n) {
+void generateCylinder(int n) {
 	double radius = 0.5;
-	double degreeStep = 360. / m;
-	for (int i = 0; i <= m; ++i) {
+	double degreeStep = 360. / n;
+	for (int i = 0; i <= n; ++i) {
 		vector<vec3> row;
 		double radian = glm::radians(degreeStep * i);
 		for (int j = 0; j <= n; ++j) {
@@ -197,9 +141,10 @@ void generateCylinder(int m, int n) {
 	}
 }
 
-void drawSurface() {
+void drawSurface(int p, int q) {
+	if (surfaceDataPoints.empty()) return;
 	delete bspS;
-	bspS = new BSplineSurface(2, 1, surfaceDataPoints);
+	bspS = new BSplineSurface(p, q, surfaceDataPoints);
 	int m = static_cast<int>(surfaceDataPoints.size()), n = surfaceDataPoints[0].size();;
 	// surfaceDataPoints
 	glBindVertexArray(vao[0]);
@@ -295,9 +240,10 @@ void drawSurface() {
 	indexSize[3] = static_cast<int>(surfaceIndex.size());
 }
 
-void drawCurve() {
+void drawCurve(int p) {
+	if (curveDataPoints.empty()) return;
 	delete bspC;
-	bspC = new BSpline(8, curveDataPoints);
+	bspC = new BSpline(p, curveDataPoints);
 	int n = bspC->n;
 	int dataNum = static_cast<int>(curveDataPoints.size());
 	// curveDataPoints
@@ -368,4 +314,50 @@ void drawCurve() {
 	}
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, curveIndex.size() * sizeof(int), curveIndex.data(), GL_STATIC_DRAW);
 	indexSize[3] = static_cast<int>(curveIndex.size());
+}
+
+int main() {
+	glfwInit();
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
+	GLFWwindow* window = glfwCreateWindow(width, height, "BSpline surface fit", nullptr, nullptr);
+	if (window == nullptr) {
+		std::cout << "Failed to create GLFW window" << std::endl;
+		glfwTerminate();
+		return -1;
+	}
+	glfwMakeContextCurrent(window);
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	glfwSetCursorPosCallback(window, mouseCallback);
+	glfwSetScrollCallback(window, scrollCallback);
+
+	if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress))) {
+		std::cout << "Failed to initialize GLAD" << std::endl;
+		return -1;
+	}
+	glViewport(0, 0, width, height);
+	glEnable(GL_DEPTH_TEST);
+	glGenVertexArrays(4, vao);
+	glGenBuffers(3, vbo);
+	glGenBuffers(4, ebo);
+	glPointSize(5);
+	Shader shader("shader.vert", "shader.frag");
+	// generateCircle(20);
+	// generateCylinder(5);
+	generateSphere(7);
+	while (!glfwWindowShouldClose(window)) {
+		glfwPollEvents();
+		processInput(window);
+		if (change) {
+			change = false;
+			drawCurve(3);
+			drawSurface(4, 4);
+		}
+		render(shader);
+		glfwSwapBuffers(window);
+	}
+	glfwTerminate();
+	return 0;
 }
