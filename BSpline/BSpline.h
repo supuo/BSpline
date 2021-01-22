@@ -1,34 +1,31 @@
 #pragma once
+#include <utility>
 #include <vector>
 #include <glm/glm.hpp>
 
-struct BSpline {
-	BSpline(int _p, const std::vector<double>& _knots) :
-		p(_p),
-		m(static_cast<int>(_knots.size()) - 1),
-		n(m - p - 1),
-		knots(_knots) {}
+#include "Fitter.h"
 
-	std::vector<double> computeCoefficients(double u);
-	glm::vec3 operator()(double u);
+struct BSpline {
+	BSpline(int _p, const std::vector<glm::vec3>& dataPoints);
+	static std::vector<double> computeCoefficients(int n, double u, const std::vector<double>& us);
+	static glm::vec3 deBoor(const std::vector<glm::vec3>& controlPoints,
+	                        const std::vector<double>& us,
+	                        int n,
+	                        int p,
+	                        double u);
+	glm::vec3 operator()(double u) const;
 	void wrap();
-	
+
 	int p = 0, m = 0, n = 0;
+	std::vector<double> us;
 	std::vector<glm::vec3> controlPoints;
-	std::vector<double> knots;
 };
 
-class BSplineSurface {
-	// public:
-	// 	BSplineSurface(const std::vector<std::vector<Eigen::Vector3d>>& dataPoints, int p, int q);
-	// 	Eigen::Vector3d calculatePoint(double u, double v);
-	// 	std::vector<std::vector<Eigen::Vector3d>> generateSurface(double step = 0.01);
-	// 	static void interpolateSurface(const std::vector<std::vector<Eigen::Vector3d>>& dataPoints);
-	// private:
-	// 	BSpline ubs, vbs;
-	// 	int p = 0; // u向阶数
-	// 	int q = 0; // v向阶数
-	// 	std::vector<std::vector<Eigen::Vector3d>> controlPoints;
-	// 	std::vector<double> knotsU;
-	// 	std::vector<double> knotsV;
+struct BSplineSurface {
+	BSplineSurface(int _p, int _q, const std::vector<std::vector<glm::vec3>>& dataPoints);
+	glm::vec3 operator()(double u, double v);
+
+	int p = 0, q = 0;
+	std::vector<double> us, vs;
+	std::vector<std::vector<glm::vec3>> controlPoints;
 };
