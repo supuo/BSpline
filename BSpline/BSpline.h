@@ -1,9 +1,7 @@
 #pragma once
-#include <utility>
+
 #include <vector>
 #include <glm/glm.hpp>
-
-#include "Fitter.h"
 
 struct BSpline {
 	BSpline(int _p, const std::vector<glm::vec3>& dataPoints);
@@ -14,7 +12,6 @@ struct BSpline {
 	                        int p,
 	                        double u);
 	glm::vec3 operator()(double u) const;
-	void wrap();
 
 	int p = 0, m = 0, n = 0;
 	std::vector<double> us;

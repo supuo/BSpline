@@ -1,5 +1,6 @@
 #include "Fitter.h"
 
+#include <iostream>
 #include <vector>
 #include <Eigen/Dense>
 
@@ -68,7 +69,7 @@ vector<double> Fitter::generateUniformKnots(int p, vector<double>& ts) {
 	return us;
 }
 
-vector<double> Fitter::generateAverageKnots(int p, vector<double> &ts) {
+vector<double> Fitter::generateAverageKnots(int p, vector<double>& ts) {
 	int n = static_cast<int>(ts.size()) - 1;
 	int m = n + p + 1;
 	vector<double> us(m + 1);
@@ -102,21 +103,37 @@ vector<vec3> Fitter::interpolateCurve(int p,
                                       const vector<double>& us) {
 	int n = static_cast<int>(dataPoints.size()) - 1;
 	vector<vec3> controlPoints;
-	Eigen::MatrixXf N(n + 1, n + 1);
+	Eigen::MatrixXd N(n + 1, n + 1);
 	for (int i = 0; i <= n; ++i) {
 		auto coefficients = BSpline::computeCoefficients(n, ts[i], us);
 		for (int j = 0; j <= n; ++j) {
-			N(i, j) = static_cast<float>(coefficients[j]);
+			N(i, j) = (coefficients[j]);
 		}
 	}
-	Eigen::MatrixXf D(n + 1, 3), P(n + 1, 3);
+	Eigen::MatrixXd D(n + 1, 3), P = Eigen::MatrixXd::Zero(n - p + 1, 3);
+	Eigen::MatrixXd M = Eigen::MatrixXd::Zero(n + 1, n - p + 1);
 	for (int i = 0; i <= n; ++i) {
 		D(i, 0) = dataPoints[i][0];
 		D(i, 1) = dataPoints[i][1];
 		D(i, 2) = dataPoints[i][2];
 	}
-	P = N.colPivHouseholderQr().solve(D);
-	for (int i = 0; i <= n; ++i) {
+	for (int i = 0; i <= n - p; ++i) {
+		M(i, i) = 1;
+	}
+	for (int i = 1; i <= p; ++i) {
+		M(n - p + i, i - 1) = 1;
+	}
+
+	auto T = N * M;
+	Eigen::MatrixXd U(n - p + 1, n - p + 1);
+	
+	P = T.colPivHouseholderQr().solve(D);
+	cout << D << endl << endl << (T * P) << endl;
+
+	for (int i = 0; i <= n - p; ++i) {
+		controlPoints.emplace_back(P(i, 0), P(i, 1), P(i, 2));
+	}
+	for (int i = 0; i <= p - 1; ++i) {
 		controlPoints.emplace_back(P(i, 0), P(i, 1), P(i, 2));
 	}
 	return controlPoints;

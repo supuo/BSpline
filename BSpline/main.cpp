@@ -70,9 +70,9 @@ int main() {
 	glGenVertexArrays(4, vao);
 	glGenBuffers(3, vbo);
 	glGenBuffers(4, ebo);
-	glPointSize(4);
+	glPointSize(5);
 	Shader shader("shader.vert", "shader.frag");
-	generateCircle(10);
+	generateCircle(20);
 	// generateCylinder(5, 5);
 	generateSphere(10, 10);
 	while (!glfwWindowShouldClose(window)) {
@@ -297,8 +297,7 @@ void drawSurface() {
 
 void drawCurve() {
 	delete bspC;
-	bspC = new BSpline(2, curveDataPoints);
-	// bspC->wrap();
+	bspC = new BSpline(8, curveDataPoints);
 	int n = bspC->n;
 	int dataNum = static_cast<int>(curveDataPoints.size());
 	// curveDataPoints

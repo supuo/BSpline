@@ -61,12 +61,6 @@ vec3 BSpline::operator()(double u) const {
 	return deBoor(controlPoints, us, n, p, u);
 }
 
-void BSpline::wrap() {
-	for (int i = 1; i <= p; ++i) {
-		controlPoints[n - p + i] = controlPoints[i - 1];
-	}
-}
-
 BSplineSurface::BSplineSurface(int _p, int _q, const vector<vector<vec3>>& dataPoints):
 	p(_p),
 	q(_q) {
