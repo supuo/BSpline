@@ -49,16 +49,16 @@ public:
 	static std::vector<glm::vec3> computeControlPoints(const BSpline& bsp,
 	                                                   const std::vector<glm::vec3>& dataPoints,
 	                                                   const std::vector<double>& ts);
-	BSpline* interpolateCurve(int p,
-	                          const std::vector<glm::vec3>& dataPoints,
-	                          std::vector<glm::vec3>& controlPoints,
-	                          BSpline::BSplineType type = BSpline::BSplineType::Closed) const;
-	BSplineSurface* interpolateSurface(int p,
-	                                   int q,
-	                                   const std::vector<std::vector<glm::vec3>>& dataPoints,
-	                                   std::vector<std::vector<glm::vec3>>& controlPoints,
-	                                   BSpline::BSplineType utype = BSpline::BSplineType::Closed,
-	                                   BSpline::BSplineType vtype = BSpline::BSplineType::Closed) const;
+	BSpline interpolateCurve(int p,
+	                         const std::vector<glm::vec3>& dataPoints,
+	                         std::vector<glm::vec3>& controlPoints,
+	                         BSpline::BSplineType type) const;
+	BSplineSurface interpolateSurface(int p,
+	                                  int q,
+	                                  const std::vector<std::vector<glm::vec3>>& dataPoints,
+	                                  std::vector<std::vector<glm::vec3>>& controlPoints,
+	                                  BSpline::BSplineType utype,
+	                                  BSpline::BSplineType vtype) const;
 
 	ParametrizationMethod parametrizationType = ParametrizationMethod::Centripetal;
 	KnotGenerationMethod knotGenerationType = KnotGenerationMethod::Uniform;

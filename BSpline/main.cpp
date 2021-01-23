@@ -14,24 +14,22 @@ using namespace std;
 using glm::vec3;
 
 namespace {
+	enum Type {
+		Curve, Surface
+	} type;
+
 	const int width = 800;
 	const int height = 800;
 
-	std::vector<vec3> curveDataPoints;
-	std::vector<std::vector<vec3>> surfaceDataPoints;
-
-	BSpline* bspC = nullptr;
-	BSplineSurface* bspS = nullptr;
-
+	Fitter fitter;
 	bool change = true;
 	const double step = 0.01;
 	unsigned vao[4], vbo[3], ebo[4], indexSize[4];
 
+	Camera camera(vec3(0, 0, 3));
 	double lastX;
 	double lastY;
 	bool firstMouse = true;
-	Camera camera(vec3(0, 0, 3));
-	Fitter fitter;
 
 	double err = 1e-8;
 }
@@ -54,6 +52,36 @@ void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
 
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
 	camera.processMouseScroll((float)yoffset);
+}
+
+GLFWwindow* initOpenGL() {
+	glfwInit();
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
+	GLFWwindow* window = glfwCreateWindow(width, height, "BSpline surface fit", nullptr, nullptr);
+	if (window == nullptr) {
+		std::cout << "Failed to create GLFW window" << std::endl;
+		glfwTerminate();
+		exit(-1);
+	}
+	glfwMakeContextCurrent(window);
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	glfwSetCursorPosCallback(window, mouseCallback);
+	glfwSetScrollCallback(window, scrollCallback);
+
+	if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress))) {
+		std::cout << "Failed to initialize GLAD" << std::endl;
+		exit(-1);
+	}
+	glViewport(0, 0, width, height);
+	glEnable(GL_DEPTH_TEST);
+	glGenVertexArrays(4, vao);
+	glGenBuffers(3, vbo);
+	glGenBuffers(4, ebo);
+	glPointSize(5);
+	return window;
 }
 
 void processInput(GLFWwindow* window) {
@@ -103,15 +131,27 @@ void render(const Shader& shader) {
 	// obj
 	shader.setInt("type", 2);
 	glBindVertexArray(vao[3]);
-	if (bspC) {
+	if (type == Curve) {
 		glDrawElements(GL_LINES, indexSize[3], GL_UNSIGNED_INT, 0);
 	}
-	if (bspS) {
+	if (type == Surface) {
 		glDrawElements(GL_TRIANGLES, indexSize[3], GL_UNSIGNED_INT, 0);
 	}
 }
 
-void generateCylinder(int n) {
+vector<vec3> generateCircle(int n) {
+	vector<vec3> dataPoints;
+	double radius = 0.5;
+	double degreeStep = 360. / n;
+	for (int i = 0; i < n; ++i) {
+		double radians = glm::radians(degreeStep * i);
+		dataPoints.emplace_back(radius * cos(radians), radius * sin(radians), 0);
+	}
+	return dataPoints;
+}
+
+vector<vector<vec3>> generateCylinder(int n) {
+	vector<vector<vec3>> dataPoints;
 	double radius = 0.5;
 	double degreeStep = 360. / n, heightStep = 1. / n;
 	for (int i = 0; i <= n; ++i) {
@@ -121,23 +161,17 @@ void generateCylinder(int n) {
 			double height = -0.5 + heightStep * j;
 			row.emplace_back(radius * sin(radian), radius * cos(radian), height);
 		}
-		surfaceDataPoints.emplace_back(row);
+		dataPoints.emplace_back(row);
 	}
+	return dataPoints;
+
 }
 
-void generateCircle(int n) {
+vector<vector<vec3>> generateSphere(int n) {
+	vector<vector<vec3>> dataPoints;
 	double radius = 0.5;
-	double degreeStep = 360. / n;
-	for (int i = 0; i < n; ++i) {
-		double radians = glm::radians(degreeStep * i);
-		curveDataPoints.emplace_back(radius * cos(radians), radius * sin(radians), 0);
-	}
-}
-
-void generateSphere(int n) {
-	double radius = 0.5;
-	double phiStep = 180. / n;
-	double thetaStep = 360. / n;
+	double thetaStep = 360 / (1. * n);
+	double phiStep = 180 / (1. * n);
 	for (int i = 0; i <= n; ++i) {
 		vector<vec3> row;
 		double phi = glm::radians(phiStep * i);
@@ -145,22 +179,23 @@ void generateSphere(int n) {
 			double theta = glm::radians(thetaStep * j);
 			row.emplace_back(radius * sin(phi) * cos(theta), radius * sin(phi) * sin(theta), radius * cos(phi));
 		}
-		surfaceDataPoints.emplace_back(row);
+		dataPoints.emplace_back(row);
 	}
+	return dataPoints;
 }
 
-void drawCurve(int p) {
-	if (curveDataPoints.empty()) return;
-	delete bspC;
+void bspCurve(int p, const vector<vec3>& dataPoints, BSpline::BSplineType bspType) {
+	if (dataPoints.empty()) return;
+	type = Curve;
 	std::vector<vec3> controlPoints;
-	bspC = fitter.interpolateCurve(p, curveDataPoints, controlPoints, BSpline::BSplineType::Closed);
-	int n = bspC->n;
-	int dataNum = static_cast<int>(curveDataPoints.size());
-	// curveDataPoints
+	auto bc = fitter.interpolateCurve(p, dataPoints, controlPoints, bspType);
+	int n = bc.n;
+	int dataNum = static_cast<int>(dataPoints.size());
+	// dataPoints
 	glBindVertexArray(vao[0]);
 	std::vector<vec3> data(dataNum);
 	for (int i = 0; i < dataNum; i++) {
-		data[i] = curveDataPoints[i];
+		data[i] = dataPoints[i];
 	}
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
 	glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(vec3), data.data(), GL_STATIC_DRAW);
@@ -206,7 +241,7 @@ void drawCurve(int p) {
 	glBindVertexArray(vao[3]);
 	std::vector<vec3> curvePoints;
 	for (double u = 0; u < 1 + err; u += step) {
-		curvePoints.emplace_back((*bspC)(controlPoints, u));
+		curvePoints.emplace_back(bc(controlPoints, u));
 	}
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
 	glBufferData(GL_ARRAY_BUFFER, curvePoints.size() * sizeof(vec3), curvePoints.data(), GL_STATIC_DRAW);
@@ -222,18 +257,22 @@ void drawCurve(int p) {
 	indexSize[3] = static_cast<int>(curveIndex.size());
 }
 
-void drawSurface(int p, int q) {
-	if (surfaceDataPoints.empty()) return;
-	delete bspS;
-	vector<vector<vec3>> controlPoints;
-	bspS = fitter.interpolateSurface(p, q, surfaceDataPoints, controlPoints);
-	int m = static_cast<int>(surfaceDataPoints.size()), n = surfaceDataPoints[0].size();
-	// surfaceDataPoints
+void bspSurface(int p,
+                int q,
+                const vector<vector<vec3>>& dataPoints,
+                BSpline::BSplineType utype,
+                BSpline::BSplineType vtype) {
+	if (dataPoints.empty()) return;
+	type = Surface;
+	std::vector<vector<vec3>> controlPoints;
+	auto bs = fitter.interpolateSurface(p, q, dataPoints, controlPoints, utype, vtype);
+	int m = static_cast<int>(dataPoints.size()), n = static_cast<int>(dataPoints[0].size());
+	// dataPoints
 	glBindVertexArray(vao[0]);
 	std::vector<vec3> data(m * n);
 	for (int i = 0; i < m; ++i) {
 		for (int j = 0; j < n; ++j) {
-			data[i * n + j] = surfaceDataPoints[i][j];
+			data[i * n + j] = dataPoints[i][j];
 		}
 	}
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
@@ -297,7 +336,7 @@ void drawSurface(int p, int q) {
 	int count = 0;
 	for (double u = 0; u < 1 + err; u += step) {
 		for (double v = 0; v < 1 + err; v += step) {
-			surfacePoints.emplace_back((*bspS)(controlPoints, u, v));
+			surfacePoints.emplace_back(bs(controlPoints, u, v));
 		}
 		count++;
 	}
@@ -323,43 +362,18 @@ void drawSurface(int p, int q) {
 }
 
 int main() {
-	glfwInit();
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
-	GLFWwindow* window = glfwCreateWindow(width, height, "BSpline surface fit", nullptr, nullptr);
-	if (window == nullptr) {
-		std::cout << "Failed to create GLFW window" << std::endl;
-		glfwTerminate();
-		return -1;
-	}
-	glfwMakeContextCurrent(window);
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-	glfwSetCursorPosCallback(window, mouseCallback);
-	glfwSetScrollCallback(window, scrollCallback);
-
-	if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress))) {
-		std::cout << "Failed to initialize GLAD" << std::endl;
-		return -1;
-	}
-	glViewport(0, 0, width, height);
-	glEnable(GL_DEPTH_TEST);
-	glGenVertexArrays(4, vao);
-	glGenBuffers(3, vbo);
-	glGenBuffers(4, ebo);
-	glPointSize(5);
+	GLFWwindow* window = initOpenGL();
 	Shader shader("shader.vert", "shader.frag");
-	generateCircle(10);
-	// generateCylinder(8);
-	// generateSphere(10);
+	// auto curveDataPoints = generateCircle(10);
+	// auto surfaceDataPoints = generateCylinder(8);
+	auto surfaceDataPoints = generateSphere(10);
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 		processInput(window);
 		if (change) {
 			change = false;
-			drawCurve(3);
-			// drawSurface(3, 3);
+			// bspCurve(3, curveDataPoints);
+			bspSurface(3, 3, surfaceDataPoints, BSpline::BSplineType::Clamped, BSpline::BSplineType::Closed);
 		}
 		render(shader);
 		glfwSwapBuffers(window);

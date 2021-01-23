@@ -8,7 +8,7 @@ struct BSpline {
 		Open, Clamped, Closed
 	};
 
-	BSpline(int _p, const std::vector<double>& us, BSplineType type);
+	BSpline(int _p, const std::vector<double>& us, BSplineType type = BSplineType::Clamped);
 	std::vector<double> computeCoefficients(double u) const;
 	glm::vec3 operator()(const std::vector<glm::vec3>& controlPoints, double u) const;
 
@@ -22,8 +22,8 @@ struct BSplineSurface {
 	               int _q,
 	               const std::vector<double>& us,
 	               const std::vector<double>& vs,
-	               BSpline::BSplineType utype,
-	               BSpline::BSplineType vtype);
+	               BSpline::BSplineType utype = BSpline::BSplineType::Clamped,
+	               BSpline::BSplineType vtype = BSpline::BSplineType::Clamped);
 	glm::vec3 operator()(const std::vector<std::vector<glm::vec3>>& controlPoints, double u, double v) const;
 
 	BSpline ubsp, vbsp;

@@ -192,28 +192,27 @@ std::vector<vec3> Fitter::computeControlPoints(const BSpline& bsp,
 	return controlPoints;
 }
 
-BSpline* Fitter::interpolateCurve(int p,
-                                  const vector<vec3>& dataPoints,
-                                  vector<vec3>& controlPoints,
-                                  BSpline::BSplineType type) const {
+BSpline Fitter::interpolateCurve(int p,
+                                 const vector<vec3>& dataPoints,
+                                 vector<vec3>& controlPoints,
+                                 BSpline::BSplineType type) const {
 	std::vector<double> ts = curveParametrization(dataPoints);
 	std::vector<double> us = generateKnots(p, ts, type);
-	BSpline* bsp = new BSpline(p, us, type);
-	controlPoints = computeControlPoints(*bsp, dataPoints, ts);
+	BSpline bsp(p, us, type);
+	controlPoints = computeControlPoints(bsp, dataPoints, ts);
 	return bsp;
 }
 
-BSplineSurface* Fitter::interpolateSurface(int p,
-                                           int q,
-                                           const std::vector<std::vector<glm::vec3>>& dataPoints,
-                                           std::vector<std::vector<glm::vec3>>& controlPoints,
-                                           BSpline::BSplineType utype,
-                                           BSpline::BSplineType vtype) const {
-	// todo: fix this;
+BSplineSurface Fitter::interpolateSurface(int p,
+                                          int q,
+                                          const std::vector<std::vector<glm::vec3>>& dataPoints,
+                                          std::vector<std::vector<glm::vec3>>& controlPoints,
+                                          BSpline::BSplineType utype,
+                                          BSpline::BSplineType vtype) const {
 	vector<vector<double>> ts = surfaceParametrization(dataPoints);
 	vector<double> us = generateUniformKnots(p, ts[0], utype);
 	vector<double> vs = generateUniformKnots(q, ts[1], vtype);
-	BSplineSurface* bs = new BSplineSurface(p, q, us, vs, utype, vtype);
+	BSplineSurface bs(p, q, us, vs, utype, vtype);
 	int m = static_cast<int>(dataPoints.size()) - 1, n = static_cast<int>(dataPoints[0].size()) - 1;
 	vector<vector<vec3>> Q(m + 1, vector<vec3>(n + 1));
 	for (int d = 0; d <= n; ++d) {
@@ -222,7 +221,7 @@ BSplineSurface* Fitter::interpolateSurface(int p,
 			columnDataPoints[i] = dataPoints[i][d];
 		}
 		// todo: reverse this
-		vector<vec3> intermediate = computeControlPoints(bs->ubsp, columnDataPoints, ts[0]);
+		vector<vec3> intermediate = computeControlPoints(bs.ubsp, columnDataPoints, ts[0]);
 		// interpolateCurve(p, columnDataPoints, parameters[0], us);
 		for (int i = 0; i <= m; ++i) {
 			Q[i][d] = intermediate[i];
@@ -230,7 +229,7 @@ BSplineSurface* Fitter::interpolateSurface(int p,
 	}
 	controlPoints.resize(m + 1);
 	for (int c = 0; c <= m; ++c) {
-		controlPoints[c] = computeControlPoints(bs->vbsp, Q[c], ts[1]);
+		controlPoints[c] = computeControlPoints(bs.vbsp, Q[c], ts[1]);
 	}
 	return bs;
 }
