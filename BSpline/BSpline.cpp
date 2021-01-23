@@ -49,7 +49,7 @@ vector<double> BSpline::computeCoefficients(double u) const {
 	return N;
 }
 
-vec3 BSpline::operator()(const std::vector<glm::vec3>& controlPoints, double u) const {
+vec3 BSpline::operator()(const std::vector<vec3>& controlPoints, double u) const {
 	// todo: fix this
 	u = reparameterize(u, us[n + 1] - us[p], us[p]);
 	vec3 point(0);

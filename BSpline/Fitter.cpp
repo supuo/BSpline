@@ -19,7 +19,7 @@ vector<double> Fitter::uniformParametrization(const vector<vec3>& dataPoints) {
 	return ret;
 }
 
-vector<double> Fitter::chordalParametrization(const std::vector<glm::vec3>& dataPoints) {
+vector<double> Fitter::chordalParametrization(const std::vector<vec3>& dataPoints) {
 	int size = static_cast<int>(dataPoints.size());
 	double accumulation = 0, total = 0;
 	for (int i = 0; i < size - 1; ++i) {
@@ -104,7 +104,7 @@ vector<double> Fitter::generateAverageKnots(int p, vector<double>& ts, BSpline::
 	return us;
 }
 
-vector<double> Fitter::curveParametrization(const std::vector<glm::vec3>& dataPoints) const {
+vector<double> Fitter::curveParametrization(const std::vector<vec3>& dataPoints) const {
 	if (parametrizationType == ParametrizationMethod::Uniform) {
 		return uniformParametrization(dataPoints);
 	}
@@ -205,8 +205,8 @@ BSpline Fitter::interpolateCurve(int p,
 
 BSplineSurface Fitter::interpolateSurface(int p,
                                           int q,
-                                          const std::vector<std::vector<glm::vec3>>& dataPoints,
-                                          std::vector<std::vector<glm::vec3>>& controlPoints,
+                                          const std::vector<std::vector<vec3>>& dataPoints,
+                                          std::vector<std::vector<vec3>>& controlPoints,
                                           BSpline::BSplineType utype,
                                           BSpline::BSplineType vtype) const {
 	vector<vector<double>> ts = surfaceParametrization(dataPoints);

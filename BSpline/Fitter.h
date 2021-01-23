@@ -30,6 +30,11 @@ public:
 		Uniform, Average
 	};
 
+	Fitter(ParametrizationMethod pType = ParametrizationMethod::Uniform,
+	       KnotGenerationMethod kType = KnotGenerationMethod::Uniform):
+		parametrizationType(pType),
+		knotGenerationType(kType) {}
+
 	// ParametrizationMethod
 	static std::vector<double> uniformParametrization(const std::vector<glm::vec3>& dataPoints);
 	static std::vector<double> chordalParametrization(const std::vector<glm::vec3>& dataPoints);
@@ -60,6 +65,6 @@ public:
 	                                  BSpline::BSplineType utype,
 	                                  BSpline::BSplineType vtype) const;
 
-	ParametrizationMethod parametrizationType = ParametrizationMethod::Centripetal;
-	KnotGenerationMethod knotGenerationType = KnotGenerationMethod::Uniform;
+	ParametrizationMethod parametrizationType;
+	KnotGenerationMethod knotGenerationType;
 };

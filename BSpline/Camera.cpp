@@ -18,8 +18,8 @@ void Camera::processKeyboard(CameraMovement direction) {
 	if (direction == CameraMovement::Backward) position -= front * movementSpeed;
 	if (direction == CameraMovement::Right) position += right * movementSpeed;
 	if (direction == CameraMovement::Left) position -= right * movementSpeed;
-	if (direction == CameraMovement::Up) position += up * movementSpeed;
-	if (direction == CameraMovement::Down) position -= movementSpeed;
+	if (direction == CameraMovement::Up) position += worldUp * movementSpeed;
+	if (direction == CameraMovement::Down) position -= worldUp * movementSpeed;
 }
 
 void Camera::processMouseMovement(float xoffset, float yoffset) {

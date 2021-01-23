@@ -1,5 +1,6 @@
 #include <vector>
 #include <iostream>
+#include <random>
 
 #include <glm/glm.hpp>
 #include <glad/glad.h>
@@ -14,17 +15,24 @@ using namespace std;
 using glm::vec3;
 
 namespace {
-	enum Type {
+	enum class geometryType {
 		Curve, Surface
 	} type;
 
-	const int width = 800;
-	const int height = 800;
+	const int WIDTH = 800;
+	const int HEIGHT = 800;
+	const double PI = acos(-1);
 
-	Fitter fitter;
+	Fitter fitter(Fitter::ParametrizationMethod::Chordal, Fitter::KnotGenerationMethod::Uniform);
+	vector<vec3>* curveDataPoints;
+	vector<vector<vec3>>* surfaceDataPoints;
+
 	bool change = true;
+	double radius = 0.5;
 	const double step = 0.01;
 	unsigned vao[4], vbo[3], ebo[4], indexSize[4];
+
+	const int sampleNum = 100;
 
 	Camera camera(vec3(0, 0, 3));
 	double lastX;
@@ -60,7 +68,7 @@ GLFWwindow* initOpenGL() {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
-	GLFWwindow* window = glfwCreateWindow(width, height, "BSpline surface fit", nullptr, nullptr);
+	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "BSpline surface fit", nullptr, nullptr);
 	if (window == nullptr) {
 		std::cout << "Failed to create GLFW window" << std::endl;
 		glfwTerminate();
@@ -75,7 +83,7 @@ GLFWwindow* initOpenGL() {
 		std::cout << "Failed to initialize GLAD" << std::endl;
 		exit(-1);
 	}
-	glViewport(0, 0, width, height);
+	glViewport(0, 0, WIDTH, HEIGHT);
 	glEnable(GL_DEPTH_TEST);
 	glGenVertexArrays(4, vao);
 	glGenBuffers(3, vbo);
@@ -113,7 +121,7 @@ void render(const Shader& shader) {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	shader.use();
 	glm::mat4 view = camera.getViewMatrix();
-	glm::mat4 projection = glm::perspective(glm::radians(camera.getZoom()), 1.f * width / height, 0.01f, 100.0f);
+	glm::mat4 projection = glm::perspective(glm::radians(camera.getZoom()), 1.f * WIDTH / HEIGHT, 0.01f, 100.0f);
 	glm::mat4 transform = projection * view;
 	shader.setMat4("transform", transform);
 	// DataPoints
@@ -131,28 +139,27 @@ void render(const Shader& shader) {
 	// obj
 	shader.setInt("type", 2);
 	glBindVertexArray(vao[3]);
-	if (type == Curve) {
+	if (type == geometryType::Curve) {
 		glDrawElements(GL_LINES, indexSize[3], GL_UNSIGNED_INT, 0);
 	}
-	if (type == Surface) {
+	if (type == geometryType::Surface) {
 		glDrawElements(GL_TRIANGLES, indexSize[3], GL_UNSIGNED_INT, 0);
 	}
 }
 
-vector<vec3> generateCircle(int n) {
-	vector<vec3> dataPoints;
-	double radius = 0.5;
+void generateCircle(int n) {
+	delete curveDataPoints;
+	curveDataPoints = new vector<vec3>;
 	double degreeStep = 360. / n;
-	for (int i = 0; i < n; ++i) {
+	for (int i = 0; i <= n; ++i) {
 		double radians = glm::radians(degreeStep * i);
-		dataPoints.emplace_back(radius * cos(radians), radius * sin(radians), 0);
+		curveDataPoints->emplace_back(radius * cos(radians), radius * sin(radians), 0);
 	}
-	return dataPoints;
 }
 
-vector<vector<vec3>> generateCylinder(int n) {
-	vector<vector<vec3>> dataPoints;
-	double radius = 0.5;
+void generateCylinder(int n) {
+	delete surfaceDataPoints;
+	surfaceDataPoints = new vector<vector<vec3>>;
 	double degreeStep = 360. / n, heightStep = 1. / n;
 	for (int i = 0; i <= n; ++i) {
 		vector<vec3> row;
@@ -161,17 +168,14 @@ vector<vector<vec3>> generateCylinder(int n) {
 			double height = -0.5 + heightStep * j;
 			row.emplace_back(radius * sin(radian), radius * cos(radian), height);
 		}
-		dataPoints.emplace_back(row);
+		surfaceDataPoints->emplace_back(row);
 	}
-	return dataPoints;
-
 }
 
-vector<vector<vec3>> generateSphere(int n) {
-	vector<vector<vec3>> dataPoints;
-	double radius = 0.5;
+void generateSphere(int n) {
+	surfaceDataPoints = new vector<vector<vec3>>;
 	double thetaStep = 360 / (1. * n);
-	double phiStep = 180 / (1. * n);
+	double phiStep = 360 / (1. * n);
 	for (int i = 0; i <= n; ++i) {
 		vector<vec3> row;
 		double phi = glm::radians(phiStep * i);
@@ -179,16 +183,23 @@ vector<vector<vec3>> generateSphere(int n) {
 			double theta = glm::radians(thetaStep * j);
 			row.emplace_back(radius * sin(phi) * cos(theta), radius * sin(phi) * sin(theta), radius * cos(phi));
 		}
-		dataPoints.emplace_back(row);
+		surfaceDataPoints->emplace_back(row);
 	}
-	return dataPoints;
 }
 
 void bspCurve(int p, const vector<vec3>& dataPoints, BSpline::BSplineType bspType) {
-	if (dataPoints.empty()) return;
-	type = Curve;
 	std::vector<vec3> controlPoints;
 	auto bc = fitter.interpolateCurve(p, dataPoints, controlPoints, bspType);
+
+	double error = 0;
+	std::default_random_engine random(time(NULL));
+	uniform_real_distribution<double> uniformDistribution(0.0, 1.0);
+	for (int i = 0; i < sampleNum; ++i) {
+		double u = uniformDistribution(random);
+		error += length(vec3(radius * cos(u * 2 * PI), radius * sin(u * 2 * PI), 0) - bc(controlPoints, u));
+	}
+	cout << "Average error: " << error / sampleNum / radius * 100 << "%" << endl;
+
 	int n = bc.n;
 	int dataNum = static_cast<int>(dataPoints.size());
 	// dataPoints
@@ -262,10 +273,25 @@ void bspSurface(int p,
                 const vector<vector<vec3>>& dataPoints,
                 BSpline::BSplineType utype,
                 BSpline::BSplineType vtype) {
-	if (dataPoints.empty()) return;
-	type = Surface;
 	std::vector<vector<vec3>> controlPoints;
 	auto bs = fitter.interpolateSurface(p, q, dataPoints, controlPoints, utype, vtype);
+
+	double error = 0;
+	std::default_random_engine random(time(NULL));
+	uniform_real_distribution<double> uniformDistribution(0.0, 1.0);
+	for (int i = 0; i < sampleNum; ++i) {
+		for (int j = 0; j < sampleNum; ++j) {
+			double u = uniformDistribution(random), v = uniformDistribution(random);
+			double uradian = 2 * PI * u, vradian = 2 * PI * v;
+			auto p1 = vec3(radius * sin(uradian) * cos(vradian),
+			               radius * sin(uradian) * sin(vradian),
+			               radius * cos(uradian));
+			auto p2 = bs(controlPoints, u, v);
+			error += static_cast<double>(glm::length(p1 - p2));
+		}
+	}
+	cout << "Surface average error: " << error / sampleNum  / sampleNum / radius * 100 << "%" << endl;;
+
 	int m = static_cast<int>(dataPoints.size()), n = static_cast<int>(dataPoints[0].size());
 	// dataPoints
 	glBindVertexArray(vao[0]);
@@ -364,16 +390,25 @@ void bspSurface(int p,
 int main() {
 	GLFWwindow* window = initOpenGL();
 	Shader shader("shader.vert", "shader.frag");
-	// auto curveDataPoints = generateCircle(10);
-	// auto surfaceDataPoints = generateCylinder(8);
-	auto surfaceDataPoints = generateSphere(10);
+
+	type = geometryType::Curve;
+	if (type == geometryType::Curve) {
+		generateCircle(10);
+	} else {
+		generateSphere(10);
+		// auto surfaceDataPoints = generateCylinder(10);
+	}
+
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 		processInput(window);
 		if (change) {
 			change = false;
-			// bspCurve(3, curveDataPoints);
-			bspSurface(3, 3, surfaceDataPoints, BSpline::BSplineType::Clamped, BSpline::BSplineType::Closed);
+			if (type == geometryType::Curve) {
+				bspCurve(3, *curveDataPoints, BSpline::BSplineType::Open);
+			} else {
+				bspSurface(3, 3, *surfaceDataPoints, BSpline::BSplineType::Clamped, BSpline::BSplineType::Clamped);
+			}
 		}
 		render(shader);
 		glfwSwapBuffers(window);
