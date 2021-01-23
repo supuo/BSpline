@@ -9,7 +9,7 @@ inline bool equal(const double a, const double b) {
 	return false;
 }
 
-inline double reparameterize(double t, double factor, double offset) {
+inline double reparameterize(const double t, const double factor, const double offset) {
 	return offset + factor * t;
 }
 

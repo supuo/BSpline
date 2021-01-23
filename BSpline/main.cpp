@@ -1,3 +1,5 @@
+#pragma comment( linker, "/subsystem:\"windows\" /entry:\"mainCRTStartup\"" ) // Òþ²ØDOS
+
 #include <vector>
 #include <iostream>
 #include <random>
@@ -10,23 +12,32 @@
 #include "Fitter.h"
 #include "Shader.h"
 #include "Camera.h"
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_glfw.h"
+#include "imgui/imgui_impl_opengl3.h"
 
 using namespace std;
 using glm::vec3;
 
 namespace {
-	enum class geometryType {
+	enum class GeometryType {
 		Curve, Surface
-	} type;
+	} gType;
 
 	const int WIDTH = 800;
 	const int HEIGHT = 800;
 	const double PI = acos(-1);
 
-	Fitter fitter(Fitter::ParametrizationMethod::Chordal, Fitter::KnotGenerationMethod::Uniform);
+	Fitter fitter(Fitter::ParametrizationMethod::Uniform, Fitter::KnotGenerationMethod::Uniform);
 	vector<vec3>* curveDataPoints;
 	vector<vector<vec3>>* surfaceDataPoints;
 
+	int g_type = 0, p_type = 0, k_type = 0, bc_type = 0, bsu_type = 0, bsv_type = 0;
+	int data_num = 3, bc_p = 1, bs_p = 1, bs_q = 1;
+	BSpline::BSplineType bc = BSpline::BSplineType::Open, bsu = BSpline::BSplineType::Open, bsv =
+		                     BSpline::BSplineType::Open;
+
+	bool show_demo_window = true;
 	bool change = true;
 	double radius = 0.5;
 	const double step = 0.01;
@@ -35,30 +46,47 @@ namespace {
 	const int sampleNum = 100;
 
 	Camera camera(vec3(0, 0, 3));
+	bool firstMouse = true;
+	int useCamera = 0;
 	double lastX;
 	double lastY;
-	bool firstMouse = true;
 
+	double error = 0;
 	double err = 1e-8;
 }
 
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+	if (key == GLFW_KEY_V && action == GLFW_PRESS) {
+		firstMouse = true;
+		useCamera ^= 1;
+		if (!useCamera) {
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		} else {
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		}
+	}
+}
+
 void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
+	if (!useCamera) return;
+
 	if (firstMouse) {
-		lastX = (float)xpos;
-		lastY = (float)ypos;
+		lastX = xpos;
+		lastY = ypos;
 		firstMouse = false;
 	}
 
-	float xoffset = (float)xpos - lastX;
-	float yoffset = lastY - (float)ypos;
+	float xoffset = static_cast<float>(xpos - lastX);
+	float yoffset = static_cast<float>(lastY - ypos);
 
-	lastX = (float)xpos;
-	lastY = (float)ypos;
+	lastX = xpos;
+	lastY = ypos;
 
 	camera.processMouseMovement(xoffset, yoffset);
 }
 
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+	if (!useCamera) return;
 	camera.processMouseScroll((float)yoffset);
 }
 
@@ -68,14 +96,14 @@ GLFWwindow* initOpenGL() {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
-	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "BSpline surface fit", nullptr, nullptr);
+	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "BSpline fitting", nullptr, nullptr);
 	if (window == nullptr) {
 		std::cout << "Failed to create GLFW window" << std::endl;
 		glfwTerminate();
 		exit(-1);
 	}
 	glfwMakeContextCurrent(window);
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	glfwSetKeyCallback(window, keyCallback);
 	glfwSetCursorPosCallback(window, mouseCallback);
 	glfwSetScrollCallback(window, scrollCallback);
 
@@ -96,22 +124,22 @@ void processInput(GLFWwindow* window) {
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
 		glfwSetWindowShouldClose(window, true);
 	}
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+	if (useCamera && glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
 		camera.processKeyboard(Camera::CameraMovement::Forward);
 	}
-	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+	if (useCamera && glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
 		camera.processKeyboard(Camera::CameraMovement::Backward);
 	}
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+	if (useCamera && glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
 		camera.processKeyboard(Camera::CameraMovement::Left);
 	}
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+	if (useCamera && glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
 		camera.processKeyboard(Camera::CameraMovement::Right);
 	}
-	if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+	if (useCamera && glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
 		camera.processKeyboard(Camera::CameraMovement::Up);
 	}
-	if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+	if (useCamera && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
 		camera.processKeyboard(Camera::CameraMovement::Down);
 	}
 }
@@ -139,10 +167,10 @@ void render(const Shader& shader) {
 	// obj
 	shader.setInt("type", 2);
 	glBindVertexArray(vao[3]);
-	if (type == geometryType::Curve) {
+	if (gType == GeometryType::Curve) {
 		glDrawElements(GL_LINES, indexSize[3], GL_UNSIGNED_INT, 0);
 	}
-	if (type == geometryType::Surface) {
+	if (gType == GeometryType::Surface) {
 		glDrawElements(GL_TRIANGLES, indexSize[3], GL_UNSIGNED_INT, 0);
 	}
 }
@@ -191,14 +219,14 @@ void bspCurve(int p, const vector<vec3>& dataPoints, BSpline::BSplineType bspTyp
 	std::vector<vec3> controlPoints;
 	auto bc = fitter.interpolateCurve(p, dataPoints, controlPoints, bspType);
 
-	double error = 0;
-	std::default_random_engine random(time(NULL));
+	error = 0;
+	std::default_random_engine random(static_cast<int>(time(nullptr)));
 	uniform_real_distribution<double> uniformDistribution(0.0, 1.0);
 	for (int i = 0; i < sampleNum; ++i) {
 		double u = uniformDistribution(random);
 		error += length(vec3(radius * cos(u * 2 * PI), radius * sin(u * 2 * PI), 0) - bc(controlPoints, u));
 	}
-	cout << "Average error: " << error / sampleNum / radius * 100 << "%" << endl;
+	error /= radius * sampleNum / 100;
 
 	int n = bc.n;
 	int dataNum = static_cast<int>(dataPoints.size());
@@ -276,8 +304,8 @@ void bspSurface(int p,
 	std::vector<vector<vec3>> controlPoints;
 	auto bs = fitter.interpolateSurface(p, q, dataPoints, controlPoints, utype, vtype);
 
-	double error = 0;
-	std::default_random_engine random(time(NULL));
+	error = 0;
+	std::default_random_engine random(static_cast<int>(time(nullptr)));
 	uniform_real_distribution<double> uniformDistribution(0.0, 1.0);
 	for (int i = 0; i < sampleNum; ++i) {
 		for (int j = 0; j < sampleNum; ++j) {
@@ -290,7 +318,7 @@ void bspSurface(int p,
 			error += static_cast<double>(glm::length(p1 - p2));
 		}
 	}
-	cout << "Surface average error: " << error / sampleNum  / sampleNum / radius * 100 << "%" << endl;;
+	error /= radius * sampleNum * sampleNum / 100;
 
 	int m = static_cast<int>(dataPoints.size()), n = static_cast<int>(dataPoints[0].size());
 	// dataPoints
@@ -387,32 +415,174 @@ void bspSurface(int p,
 	indexSize[3] = static_cast<int>(surfaceIndex.size());
 }
 
+void processGUI() {
+	ImGui::Begin("STATUS: ");
+	string output("Average Error: ");
+	output += to_string(error) + "%";
+	ImGui::Text("Sampled from 100 points in each dimension");
+	ImGui::Text(output.c_str());
+
+	ImGui::Text("");
+	ImGui::Text("Geometry Type: ");
+	int og_type = g_type;
+	ImGui::RadioButton("circle", &g_type, 0);
+	ImGui::SameLine();
+	ImGui::RadioButton("sphere", &g_type, 1);
+	if (og_type != g_type) {
+		change = true;
+		if (g_type == 0) gType = GeometryType::Curve;
+		else gType = GeometryType::Surface;
+	}
+
+	ImGui::Text("Parametrization method: ");
+	int op_type = p_type;
+	ImGui::RadioButton("uniform", &p_type, 0);
+	ImGui::SameLine();
+	ImGui::RadioButton("chordal", &p_type, 1);
+	ImGui::SameLine();
+	ImGui::RadioButton("centripetal", &p_type, 2);
+	if (op_type != p_type) {
+		change = true;
+		if (p_type == 0) fitter.parametrizationType = Fitter::ParametrizationMethod::Uniform;
+		else if (p_type == 1) fitter.parametrizationType = Fitter::ParametrizationMethod::Chordal;
+		else fitter.parametrizationType = Fitter::ParametrizationMethod::Centripetal;
+	}
+
+	int odata_num = data_num;
+	ImGui::SliderInt("dataNum", &data_num, 3, 20);
+	if (odata_num != data_num) {
+		generateCircle(data_num);
+		generateSphere(data_num);
+		change = true;
+	}
+
+	if (g_type == 0) {
+		int obc_type = bc_type;
+		int obc_p = bc_p;
+		ImGui::Text("b-spline type: ");
+		ImGui::RadioButton("open", &bc_type, 0);
+		ImGui::SameLine();
+		ImGui::RadioButton("clamped", &bc_type, 1);
+		ImGui::SameLine();
+		ImGui::RadioButton("closed", &bc_type, 2);
+		if (obc_type != bc_type) {
+			change = true;
+			if (bc_type == 0) bc = BSpline::BSplineType::Open;
+			else if (bc_type == 1) bc = BSpline::BSplineType::Clamped;
+			else {
+				bc = BSpline::BSplineType::Closed;
+				if (bc_p > data_num / 2) bc_p = data_num / 2;
+			}
+		}
+		ImGui::SliderInt("P",
+		                 &bc_p,
+		                 1,
+		                 bc_type == 2
+			                 ? data_num / 2
+			                 : data_num - 1);
+		if (obc_p != bc_p) {
+			change = true;
+		}
+	} else {
+		int obsu_type = bsu_type, obsv_type = bsv_type;
+		ImGui::Text("uDir BSpline type: ");
+		ImGui::RadioButton("uOpen", &bsu_type, 0);
+		ImGui::SameLine();
+		ImGui::RadioButton("uClamped", &bsu_type, 1);
+		ImGui::SameLine();
+		ImGui::RadioButton("uClosed", &bsu_type, 2);
+		ImGui::Text("vDir bSpline type: ");
+		ImGui::RadioButton("vOpen", &bsv_type, 0);
+		ImGui::SameLine();
+		ImGui::RadioButton("vClamped", &bsv_type, 1);
+		ImGui::SameLine();
+		ImGui::RadioButton("vClosed", &bsv_type, 2);
+		if (obsu_type != bsu_type || obsv_type != bsv_type) {
+			change = true;
+			if (bsu_type == 0) bsu = BSpline::BSplineType::Open;
+			else if (bsu_type == 1) bsu = BSpline::BSplineType::Clamped;
+			else {
+				bsu = BSpline::BSplineType::Closed;
+				if (bs_p > data_num / 2) bs_p = data_num / 2;
+			}
+			if (bsv_type == 0) bsv = BSpline::BSplineType::Open;
+			else if (bsv_type == 1) bsv = BSpline::BSplineType::Clamped;
+			else {
+				bsv = BSpline::BSplineType::Closed;
+				if (bs_q > data_num / 2) bs_q = data_num / 2;
+			}
+		}
+		int obs_p = bs_p, obs_q = bs_q;
+		ImGui::SliderInt("uP",
+		                 &bs_p,
+		                 1,
+		                 bsu_type == 2
+			                 ? data_num / 2
+			                 : data_num - 1);
+		ImGui::SliderInt("vQ",
+		                 &bs_q,
+		                 1,
+		                 bsv_type == 2
+			                 ? data_num / 2
+			                 : data_num - 1);
+		if (obs_p != bs_p || obs_q != bs_q) {
+			change = true;
+		}
+	}
+
+	ImGui::End();
+}
+
 int main() {
 	GLFWwindow* window = initOpenGL();
+
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	(void)io;
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
+	ImGui_ImplOpenGL3_Init("#version 120");
+
 	Shader shader("shader.vert", "shader.frag");
 
-	type = geometryType::Curve;
-	if (type == geometryType::Curve) {
-		generateCircle(10);
-	} else {
-		generateSphere(10);
-		// auto surfaceDataPoints = generateCylinder(10);
-	}
+	generateCircle(data_num);
+	generateSphere(data_num);
+	// auto surfaceDataPoints = generateCylinder(10);
+
+	gType = GeometryType::Curve;
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 		processInput(window);
+
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+		if (!useCamera) {
+			processGUI();
+		}
+
 		if (change) {
 			change = false;
-			if (type == geometryType::Curve) {
-				bspCurve(3, *curveDataPoints, BSpline::BSplineType::Open);
+			if (gType == GeometryType::Curve) {
+				bspCurve(bc_p, *curveDataPoints, bc);
 			} else {
-				bspSurface(3, 3, *surfaceDataPoints, BSpline::BSplineType::Clamped, BSpline::BSplineType::Clamped);
+				bspSurface(bs_p, bs_q, *surfaceDataPoints, bsu, bsv);
 			}
 		}
+
 		render(shader);
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
 		glfwSwapBuffers(window);
 	}
+
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
+
+	glfwDestroyWindow(window);
 	glfwTerminate();
 	return 0;
 }

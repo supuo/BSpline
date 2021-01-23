@@ -68,14 +68,14 @@ BSplineSurface::BSplineSurface(int _p,
 	vbsp(_q, vs, vtype) {}
 
 vec3 BSplineSurface::operator()(const vector<vector<vec3>>& controlPoints, double u, double v) const {
-	vector<vec3> intermediate;
 	int m = static_cast<int>(controlPoints.size()) - 1, n = static_cast<int>(controlPoints[0].size()) - 1;
+	vector<vec3> intermediate(m + 1);
 	for (int i = 0; i <= m; ++i) {
-		vector<vec3> rowControlPoints;
+		vector<vec3> rowControlPoints(n + 1);
 		for (int j = 0; j <= n; ++j) {
-			rowControlPoints.emplace_back(controlPoints[i][j]);
+			rowControlPoints[j] = controlPoints[i][j];
 		}
-		intermediate.emplace_back(vbsp(rowControlPoints, v));
+		intermediate[i] = vbsp(rowControlPoints, v);
 	}
 	return ubsp(intermediate, u);
 }
