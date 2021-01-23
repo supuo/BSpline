@@ -6,10 +6,12 @@
 class Camera {
 public:
 	enum class CameraMovement {
-		FORWARD,
-		BACKWARD,
-		LEFT,
-		RIGHT
+		Forward,
+		Backward,
+		Left,
+		Right,
+		Up,
+		Down
 	};
 
 	explicit Camera(glm::vec3 _position = glm::vec3(0.0f, 0.0f, 0.0f));

@@ -7,28 +7,28 @@
 using namespace std;
 using namespace glm;
 
-BSpline::BSpline(int _p, const std::vector<vec3>& dataPoints):
-	p(_p) {
-	std::vector<double> ts = Fitter::centriPetalParameterize(dataPoints);
-	us = Fitter::generateUniformKnots(p, ts);
+BSpline::BSpline(int _p, const vector<double>& _us, BSplineType _type):
+	p(_p),
+	us(_us),
+	type(_type) {
 	m = static_cast<int>(us.size()) - 1;
 	n = m - p - 1;
-	controlPoints = Fitter::interpolateCurve(p, dataPoints, ts, us);
 }
 
-vector<double> BSpline::computeCoefficients(int n, double u, const vector<double>& us) {
+vector<double> BSpline::computeCoefficients(double u) const {
 	vector<double> N(n + 1);
-	int m = static_cast<int>(us.size()) - 1;
-	int p = m - n - 1;
 	int k = 0;
-	// if (equal(u, us[p])) {
-	// 	N[0] = 1;
-	// 	return N;
-	// }
-	// if (equal(u, us[n + 1])) {
-	// 	N[n] = 1;
-	// 	return N;
-	// }
+	// todo: verify this
+	if (type == BSplineType::Clamped) {
+		if (equal(u, us[p])) {
+			N[0] = 1;
+			return N;
+		}
+		if (equal(u, us[n + 1])) {
+			N[n] = 1;
+			return N;
+		}
+	}
 	for (; k < m; ++k) {
 		if (us[k] <= u && u < us[k + 1]) {
 			break;
@@ -49,28 +49,25 @@ vector<double> BSpline::computeCoefficients(int n, double u, const vector<double
 	return N;
 }
 
-vec3 BSpline::deBoor(const vector<vec3>& controlPoints, const vector<double>& us, int n, int p, double u) {
-	u = Fitter::reparameterize(u, us[n + 1] - us[p], us[p]);
+vec3 BSpline::operator()(const std::vector<glm::vec3>& controlPoints, double u) const {
+	// todo: fix this
+	u = reparameterize(u, us[n + 1] - us[p], us[p]);
 	vec3 point(0);
-	auto coefficients = computeCoefficients(n, u, us);
+	auto coefficients = computeCoefficients(u);
 	for (int i = 0; i <= n; i++) point += static_cast<float>(coefficients[i]) * controlPoints[i];
 	return point;
 }
 
-vec3 BSpline::operator()(double u) const {
-	return deBoor(controlPoints, us, n, p, u);
-}
+BSplineSurface::BSplineSurface(int _p,
+                               int _q,
+                               const vector<double>& us,
+                               const vector<double>& vs,
+                               BSpline::BSplineType utype,
+                               BSpline::BSplineType vtype):
+	ubsp(_p, us, utype),
+	vbsp(_q, vs, vtype) {}
 
-BSplineSurface::BSplineSurface(int _p, int _q, const vector<vector<vec3>>& dataPoints):
-	p(_p),
-	q(_q) {
-	vector<vector<double>> parameters = Fitter::parameterize(dataPoints);
-	us = Fitter::generateUniformKnots(p, parameters[0]);
-	vs = Fitter::generateUniformKnots(q, parameters[1]);
-	controlPoints = Fitter::interpolateSurface(p, q, dataPoints, parameters, us, vs);
-}
-
-vec3 BSplineSurface::operator()(double u, double v) {
+vec3 BSplineSurface::operator()(const vector<vector<vec3>>& controlPoints, double u, double v) const {
 	vector<vec3> intermediate;
 	int m = static_cast<int>(controlPoints.size()) - 1, n = static_cast<int>(controlPoints[0].size()) - 1;
 	for (int i = 0; i <= m; ++i) {
@@ -78,7 +75,7 @@ vec3 BSplineSurface::operator()(double u, double v) {
 		for (int j = 0; j <= n; ++j) {
 			rowControlPoints.emplace_back(controlPoints[i][j]);
 		}
-		intermediate.emplace_back(BSpline::deBoor(rowControlPoints, vs, n, q, v));
+		intermediate.emplace_back(vbsp(rowControlPoints, v));
 	}
-	return BSpline::deBoor(intermediate, us, m, p, u);
+	return ubsp(intermediate, u);
 }
