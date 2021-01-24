@@ -1,4 +1,4 @@
-#pragma comment( linker, "/subsystem:\"windows\" /entry:\"mainCRTStartup\"" ) // Òþ²ØDOS
+// #pragma comment( linker, "/subsystem:\"windows\" /entry:\"mainCRTStartup\"" ) // Òþ²ØDOS
 
 #include <vector>
 #include <iostream>
@@ -33,11 +33,15 @@ namespace {
 	vector<vector<vec3>>* surfaceDataPoints;
 
 	int g_type = 0, p_type = 0, k_type = 0, bc_type = 0, bsu_type = 0, bsv_type = 0;
-	int data_num = 3, bc_p = 1, bs_p = 1, bs_q = 1;
+	int data_num = 10 , bc_p = 1, bs_p = 1, bs_q = 1, h = 3, e = 5, f = 5;
 	BSpline::BSplineType bc = BSpline::BSplineType::Open, bsu = BSpline::BSplineType::Open, bsv =
 		                     BSpline::BSplineType::Open;
 
-	bool show_demo_window = true;
+	bool showData = true;
+	bool showControl = true;
+	bool showGeometry = true;
+
+	const int maxData = 100;
 	bool change = true;
 	double radius = 0.5;
 	const double step = 0.01;
@@ -64,6 +68,15 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		} else {
 			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 		}
+	}
+	if (key == GLFW_KEY_C && action == GLFW_PRESS) {
+		showControl ^= 1;
+	}
+	if (key == GLFW_KEY_X && action == GLFW_PRESS) {
+		showData ^= 1;
+	}
+	if (key == GLFW_KEY_Z && action == GLFW_PRESS) {
+		showGeometry ^= 1;
 	}
 }
 
@@ -152,26 +165,31 @@ void render(const Shader& shader) {
 	glm::mat4 projection = glm::perspective(glm::radians(camera.getZoom()), 1.f * WIDTH / HEIGHT, 0.01f, 100.0f);
 	glm::mat4 transform = projection * view;
 	shader.setMat4("transform", transform);
-	// DataPoints
-	shader.setInt("type", 0);
-	glBindVertexArray(vao[0]);
-	glDrawElements(GL_POINTS, indexSize[0], GL_UNSIGNED_INT, 0);
-	// controlPoints
-	shader.setInt("type", 1);
-	glBindVertexArray(vao[1]);
-	glDrawElements(GL_POINTS, indexSize[1], GL_UNSIGNED_INT, 0);
-	// controlLines
-	shader.setInt("type", 1);
-	glBindVertexArray(vao[2]);
-	glDrawElements(GL_LINES, indexSize[2], GL_UNSIGNED_INT, 0);
-	// obj
-	shader.setInt("type", 2);
-	glBindVertexArray(vao[3]);
-	if (gType == GeometryType::Curve) {
-		glDrawElements(GL_LINES, indexSize[3], GL_UNSIGNED_INT, 0);
+	if (showData) {
+		// DataPoints
+		shader.setInt("type", 0);
+		glBindVertexArray(vao[0]);
+		glDrawElements(GL_POINTS, indexSize[0], GL_UNSIGNED_INT, 0);
 	}
-	if (gType == GeometryType::Surface) {
-		glDrawElements(GL_TRIANGLES, indexSize[3], GL_UNSIGNED_INT, 0);
+	if (showControl) {
+		// controlPoints
+		shader.setInt("type", 1);
+		glBindVertexArray(vao[1]);
+		glDrawElements(GL_POINTS, indexSize[1], GL_UNSIGNED_INT, 0);
+		// controlLines
+		shader.setInt("type", 1);
+		glBindVertexArray(vao[2]);
+		glDrawElements(GL_LINES, indexSize[2], GL_UNSIGNED_INT, 0);
+	}
+	if (showGeometry) {
+		shader.setInt("type", 2);
+		glBindVertexArray(vao[3]);
+		if (gType == GeometryType::Curve) {
+			glDrawElements(GL_LINES, indexSize[3], GL_UNSIGNED_INT, 0);
+		}
+		if (gType == GeometryType::Surface) {
+			glDrawElements(GL_TRIANGLES, indexSize[3], GL_UNSIGNED_INT, 0);
+		}
 	}
 }
 
@@ -217,16 +235,18 @@ void generateSphere(int n) {
 
 void bspCurve(int p, const vector<vec3>& dataPoints, BSpline::BSplineType bspType) {
 	std::vector<vec3> controlPoints;
-	auto bc = fitter.interpolateCurve(p, dataPoints, controlPoints, bspType);
+	// auto bc = fitter.interpolateCurve(p, dataPoints, controlPoints, bspType);
+	auto bc = fitter.approximateCurve(p, h, dataPoints, controlPoints);
 
 	error = 0;
 	std::default_random_engine random(static_cast<int>(time(nullptr)));
 	uniform_real_distribution<double> uniformDistribution(0.0, 1.0);
 	for (int i = 0; i < sampleNum; ++i) {
 		double u = uniformDistribution(random);
-		error += length(vec3(radius * cos(u * 2 * PI), radius * sin(u * 2 * PI), 0) - bc(controlPoints, u));
+		auto samplePoint = vec3(radius * cos(u * 2 * PI), radius * sin(u * 2 * PI), 0);
+		error += length(samplePoint - bc(controlPoints, u));
 	}
-	error /= radius * sampleNum / 100;
+	error /= radius * sampleNum;
 
 	int n = bc.n;
 	int dataNum = static_cast<int>(dataPoints.size());
@@ -248,6 +268,7 @@ void bspCurve(int p, const vector<vec3>& dataPoints, BSpline::BSplineType bspTyp
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, pointIndex.size() * sizeof(int), pointIndex.data(), GL_STATIC_DRAW);
 	indexSize[0] = dataNum;
 	// controlPoints
+	int h =static_cast<int>(controlPoints.size()) - 1;
 	glBindVertexArray(vao[1]);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
 	glBufferData(GL_ARRAY_BUFFER, controlPoints.size() * sizeof(vec3), controlPoints.data(), GL_STATIC_DRAW);
@@ -255,7 +276,7 @@ void bspCurve(int p, const vector<vec3>& dataPoints, BSpline::BSplineType bspTyp
 	glEnableVertexAttribArray(0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo[1]);
 	std::vector<int> controlPointIndex;
-	for (int i = 0; i <= n; i++) {
+	for (int i = 0; i <= h; i++) {
 		controlPointIndex.push_back(i);
 	}
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER,
@@ -270,7 +291,7 @@ void bspCurve(int p, const vector<vec3>& dataPoints, BSpline::BSplineType bspTyp
 	glEnableVertexAttribArray(0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo[2]);
 	std::vector<int> lineIndex;
-	for (int i = 0; i <= n - 1; i++) {
+	for (int i = 0; i <= h - 1; i++) {
 		lineIndex.push_back(i);
 		lineIndex.push_back(i + 1);
 	}
@@ -302,8 +323,9 @@ void bspSurface(int p,
                 BSpline::BSplineType utype,
                 BSpline::BSplineType vtype) {
 	std::vector<vector<vec3>> controlPoints;
-	auto bs = fitter.interpolateSurface(p, q, dataPoints, controlPoints, utype, vtype);
-
+	// auto bs = fitter.interpolateSurface(p, q, dataPoints, controlPoints, utype, vtype);
+	auto bs = fitter.approximateSurface(p, q, e, f, dataPoints, controlPoints);
+	
 	error = 0;
 	std::default_random_engine random(static_cast<int>(time(nullptr)));
 	uniform_real_distribution<double> uniformDistribution(0.0, 1.0);
@@ -318,7 +340,7 @@ void bspSurface(int p,
 			error += static_cast<double>(glm::length(p1 - p2));
 		}
 	}
-	error /= radius * sampleNum * sampleNum / 100;
+	error /= radius * sampleNum * sampleNum;
 
 	int m = static_cast<int>(dataPoints.size()), n = static_cast<int>(dataPoints[0].size());
 	// dataPoints
@@ -418,7 +440,7 @@ void bspSurface(int p,
 void processGUI() {
 	ImGui::Begin("STATUS: ");
 	string output("Average Error: ");
-	output += to_string(error) + "%";
+	output += to_string(error);
 	ImGui::Text("Sampled from 100 points in each dimension");
 	ImGui::Text(output.c_str());
 
@@ -449,7 +471,7 @@ void processGUI() {
 	}
 
 	int odata_num = data_num;
-	ImGui::SliderInt("dataNum", &data_num, 3, 20);
+	ImGui::SliderInt("dataNum", &data_num, 3, maxData);
 	if (odata_num != data_num) {
 		generateCircle(data_num);
 		generateSphere(data_num);
@@ -471,15 +493,21 @@ void processGUI() {
 			else if (bc_type == 1) bc = BSpline::BSplineType::Clamped;
 			else {
 				bc = BSpline::BSplineType::Closed;
-				if (bc_p > data_num / 2) bc_p = data_num / 2;
+				if (bc_p > data_num / 2) bc_p = min(data_num / 2, 20);
+
 			}
 		}
+		bc_p = min(bc_p,
+		           bc == BSpline::BSplineType::Closed
+			           ? data_num / 2
+			           : data_num);
 		ImGui::SliderInt("P",
 		                 &bc_p,
 		                 1,
-		                 bc_type == 2
-			                 ? data_num / 2
-			                 : data_num - 1);
+		                 min(bc_type == 2
+			                     ? data_num / 2
+			                     : data_num,
+		                     20));
 		if (obc_p != bc_p) {
 			change = true;
 		}
@@ -503,28 +531,38 @@ void processGUI() {
 			else if (bsu_type == 1) bsu = BSpline::BSplineType::Clamped;
 			else {
 				bsu = BSpline::BSplineType::Closed;
-				if (bs_p > data_num / 2) bs_p = data_num / 2;
+				if (bs_p > data_num / 2) bs_p = min(data_num / 2, 20);
 			}
 			if (bsv_type == 0) bsv = BSpline::BSplineType::Open;
 			else if (bsv_type == 1) bsv = BSpline::BSplineType::Clamped;
 			else {
 				bsv = BSpline::BSplineType::Closed;
-				if (bs_q > data_num / 2) bs_q = data_num / 2;
+				if (bs_q > data_num / 2) bs_q = min(data_num / 2, 20);
 			}
 		}
+		bs_p = min(bs_p,
+		           bsu == BSpline::BSplineType::Closed
+			           ? data_num / 2
+			           : data_num);
+		bs_q = min(bs_q,
+		           bsv == BSpline::BSplineType::Closed
+			           ? data_num / 2
+			           : data_num);
 		int obs_p = bs_p, obs_q = bs_q;
 		ImGui::SliderInt("uP",
 		                 &bs_p,
 		                 1,
-		                 bsu_type == 2
-			                 ? data_num / 2
-			                 : data_num - 1);
+		                 min(bsu_type == 2
+			                     ? data_num / 2
+			                     : data_num,
+		                     20));
 		ImGui::SliderInt("vQ",
 		                 &bs_q,
 		                 1,
-		                 bsv_type == 2
-			                 ? data_num / 2
-			                 : data_num - 1);
+		                 min(bsv_type == 2
+			                     ? data_num / 2
+			                     : data_num,
+		                     20));
 		if (obs_p != bs_p || obs_q != bs_q) {
 			change = true;
 		}
@@ -540,7 +578,7 @@ int main() {
 	ImGuiIO& io = ImGui::GetIO();
 	(void)io;
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
-	ImGui_ImplOpenGL3_Init("#version 120");
+	ImGui_ImplOpenGL3_Init("#version 130");
 
 	Shader shader("shader.vert", "shader.frag");
 

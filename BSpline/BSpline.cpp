@@ -18,7 +18,6 @@ BSpline::BSpline(int _p, const vector<double>& _us, BSplineType _type):
 vector<double> BSpline::computeCoefficients(double u) const {
 	vector<double> N(n + 1);
 	int k = 0;
-	// todo: verify this
 	if (type == BSplineType::Clamped) {
 		if (equal(u, us[p])) {
 			N[0] = 1;
@@ -50,11 +49,11 @@ vector<double> BSpline::computeCoefficients(double u) const {
 }
 
 vec3 BSpline::operator()(const std::vector<vec3>& controlPoints, double u) const {
-	// todo: fix this
 	u = reparameterize(u, us[n + 1] - us[p], us[p]);
 	vec3 point(0);
 	auto coefficients = computeCoefficients(u);
-	for (int i = 0; i <= n; i++) point += static_cast<float>(coefficients[i]) * controlPoints[i];
+	int h = static_cast<int>(controlPoints.size()) - 1;
+	for (int i = 0; i <= n && i <= h; i++) point += static_cast<float>(coefficients[i]) * controlPoints[i];
 	return point;
 }
 

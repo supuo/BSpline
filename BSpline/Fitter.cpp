@@ -9,7 +9,7 @@
 using namespace std;
 using glm::vec3;
 
-vector<double> Fitter::uniformParametrization(const vector<vec3>& dataPoints) {
+vector<double> Fitter::uniformParametrization(const vector<vec3>& dataPoints) const {
 	int size = static_cast<int>(dataPoints.size());
 	vector<double> ret(size);
 	double step = 1. / (size - 1);
@@ -19,7 +19,7 @@ vector<double> Fitter::uniformParametrization(const vector<vec3>& dataPoints) {
 	return ret;
 }
 
-vector<double> Fitter::chordalParametrization(const std::vector<vec3>& dataPoints) {
+vector<double> Fitter::chordalParametrization(const std::vector<vec3>& dataPoints) const {
 	int size = static_cast<int>(dataPoints.size());
 	double accumulation = 0, total = 0;
 	for (int i = 0; i < size - 1; ++i) {
@@ -38,7 +38,7 @@ vector<double> Fitter::chordalParametrization(const std::vector<vec3>& dataPoint
 	return ret;
 }
 
-vector<double> Fitter::centripetalParametrization(const vector<vec3>& dataPoints) {
+vector<double> Fitter::centripetalParametrization(const vector<vec3>& dataPoints) const {
 	int size = static_cast<int>(dataPoints.size());
 	double accumulation = 0, total = 0;
 	for (int i = 0; i < size - 1; ++i) {
@@ -57,15 +57,14 @@ vector<double> Fitter::centripetalParametrization(const vector<vec3>& dataPoints
 	return ret;
 }
 
-std::vector<double> Fitter::generateKnots(int p, std::vector<double>& ts, BSpline::BSplineType bspType) const {
+std::vector<double> Fitter::generateKnots(int p, int n, std::vector<double>& ts, BSpline::BSplineType bspType) const {
 	if (knotGenerationType == KnotGenerationMethod::Average) {
-		return generateAverageKnots(p, ts, bspType);
+		return generateAverageKnots(p, n, ts, bspType);
 	}
-	return generateUniformKnots(p, ts, bspType);
+	return generateUniformKnots(p, n, ts, bspType);
 }
 
-vector<double> Fitter::generateUniformKnots(int p, vector<double>& ts, BSpline::BSplineType bspType) const {
-	int n = static_cast<int>(ts.size()) - 1;
+vector<double> Fitter::generateUniformKnots(int p, int n, vector<double>& ts, BSpline::BSplineType bspType) const {
 	int m = n + p + 1;
 	vector<double> us(m + 1);
 	if (bspType == BSpline::BSplineType::Clamped) {
@@ -84,12 +83,11 @@ vector<double> Fitter::generateUniformKnots(int p, vector<double>& ts, BSpline::
 	return us;
 }
 
-vector<double> Fitter::generateAverageKnots(int p, vector<double>& ts, BSpline::BSplineType bspType) const {
+vector<double> Fitter::generateAverageKnots(int p, int n, vector<double>& ts, BSpline::BSplineType bspType) const {
 	if (bspType != BSpline::BSplineType::Clamped) {
 		std::cout << "Average knot vector generation method can be only used for clamped b-spline!" << std::endl;
-		return generateUniformKnots(p, ts, bspType);
+		return generateUniformKnots(p, n, ts, bspType);
 	}
-	int n = static_cast<int>(ts.size()) - 1;
 	int m = n + p + 1;
 	vector<double> us(m + 1);
 	for (int j = 1; j <= n - p; ++j) {
@@ -148,9 +146,9 @@ vector<vector<double>> Fitter::surfaceParametrization(const vector<vector<vec3>>
 	return parameter;
 }
 
-std::vector<vec3> Fitter::computeControlPoints(const BSpline& bsp,
-                                               const vector<vec3>& dataPoints,
-                                               const std::vector<double>& ts) {
+std::vector<vec3> Fitter::interpolateControlPoints(const BSpline& bsp,
+                                                   const vector<vec3>& dataPoints,
+                                                   const std::vector<double>& ts) const {
 	int p = bsp.p;
 	int n = static_cast<int>(dataPoints.size()) - 1;
 	vector<vec3> controlPoints;
@@ -176,7 +174,7 @@ std::vector<vec3> Fitter::computeControlPoints(const BSpline& bsp,
 			M(n - p + i, i - 1) = 1;
 		}
 
-		Eigen::MatrixXd P = (N * M).colPivHouseholderQr().solve(D);
+		Eigen::MatrixXd P = (N * M).householderQr().solve(D);
 		for (int i = 0; i <= n - p; ++i) {
 			controlPoints.emplace_back(P(i, 0), P(i, 1), P(i, 2));
 		}
@@ -184,7 +182,7 @@ std::vector<vec3> Fitter::computeControlPoints(const BSpline& bsp,
 			controlPoints.emplace_back(P(i, 0), P(i, 1), P(i, 2));
 		}
 	} else {
-		Eigen::MatrixXd P = N.colPivHouseholderQr().solve(D);
+		Eigen::MatrixXd P = N.householderQr().solve(D);
 		for (int i = 0; i <= n; ++i) {
 			controlPoints.emplace_back(P(i, 0), P(i, 1), P(i, 2));
 		}
@@ -197,9 +195,9 @@ BSpline Fitter::interpolateCurve(int p,
                                  vector<vec3>& controlPoints,
                                  BSpline::BSplineType type) const {
 	std::vector<double> ts = curveParametrization(dataPoints);
-	std::vector<double> us = generateKnots(p, ts, type);
+	std::vector<double> us = generateKnots(p, static_cast<int>(ts.size()) - 1, ts, type);
 	BSpline bsp(p, us, type);
-	controlPoints = computeControlPoints(bsp, dataPoints, ts);
+	controlPoints = interpolateControlPoints(bsp, dataPoints, ts);
 	return bsp;
 }
 
@@ -210,8 +208,8 @@ BSplineSurface Fitter::interpolateSurface(int p,
                                           BSpline::BSplineType utype,
                                           BSpline::BSplineType vtype) const {
 	vector<vector<double>> ts = surfaceParametrization(dataPoints);
-	vector<double> us = generateUniformKnots(p, ts[0], utype);
-	vector<double> vs = generateUniformKnots(q, ts[1], vtype);
+	vector<double> us = generateUniformKnots(p, static_cast<int>(ts[0].size()) - 1, ts[0], utype);
+	vector<double> vs = generateUniformKnots(q, static_cast<int>(ts[1].size()) - 1, ts[1], vtype);
 	BSplineSurface bs(p, q, us, vs, utype, vtype);
 	int m = static_cast<int>(dataPoints.size()) - 1, n = static_cast<int>(dataPoints[0].size()) - 1;
 	vector<vector<vec3>> Q(m + 1, vector<vec3>(n + 1));
@@ -220,16 +218,97 @@ BSplineSurface Fitter::interpolateSurface(int p,
 		for (int i = 0; i <= m; ++i) {
 			columnDataPoints[i] = dataPoints[i][d];
 		}
-		// todo: reverse this
-		vector<vec3> intermediate = computeControlPoints(bs.ubsp, columnDataPoints, ts[0]);
-		// interpolateCurve(p, columnDataPoints, parameters[0], us);
+		vector<vec3> intermediate = interpolateControlPoints(bs.ubsp, columnDataPoints, ts[0]);
 		for (int i = 0; i <= m; ++i) {
 			Q[i][d] = intermediate[i];
 		}
 	}
 	controlPoints.resize(m + 1);
 	for (int c = 0; c <= m; ++c) {
-		controlPoints[c] = computeControlPoints(bs.vbsp, Q[c], ts[1]);
+		controlPoints[c] = interpolateControlPoints(bs.vbsp, Q[c], ts[1]);
+	}
+	return bs;
+}
+
+std::vector<vec3> Fitter::approximateControlPoints(const BSpline& bsp,
+                                                   int h,
+                                                   const std::vector<glm::vec3>& dataPoints,
+                                                   const std::vector<double>& ts) const {
+	int n = static_cast<int>(dataPoints.size()) - 1;
+
+	vector<vector<double>> N(n + 1);
+	for (int k = 0; k <= n; ++k) {
+		N[k] = bsp.computeCoefficients(ts[k]);
+	}
+	Eigen::MatrixXd matrixN(n - 1, h - 1);
+	for (int i = 0; i < n - 1; ++i) {
+		for (int j = 0; j < h - 1; ++j) {
+			matrixN(i, j) = N[i + 1][j + 1];
+		}
+	}
+	Eigen::MatrixXd D(n + 1, 3);
+	for (int i = 0; i <= n; ++i) {
+		D(i, 0) = static_cast<double>(dataPoints[i][0]);
+		D(i, 1) = static_cast<double>(dataPoints[i][1]);
+		D(i, 2) = static_cast<double>(dataPoints[i][2]);
+	}
+
+	Eigen::MatrixXd Qk(n - 1, 3);
+	for (int i = 0; i < n - 1; ++i) {
+		Qk.row(i) = D.row(i + 1) - N[i + 1][0] * D.row(0) - N[i + 1][h] * D.row(n);
+	}
+	Eigen::MatrixXd Q(h - 1, 3);
+	for (int i = 0; i < h - 1; ++i) {
+		Q = matrixN.transpose() * Qk;
+	}
+	Eigen::MatrixXd M = matrixN.transpose() * matrixN;
+	Eigen::MatrixXd P = M.householderQr().solve(Q);
+	vector<vec3> controlPoints(h + 1);
+	controlPoints[0] = dataPoints[0];
+	for (int i = 1; i < h; ++i) {
+		auto p = P.row(i - 1);
+		controlPoints[i] = vec3(p(0), p(1), p(2));
+	}
+	controlPoints[h] = dataPoints[n];
+	return controlPoints;
+}
+
+BSpline Fitter::approximateCurve(int p,
+                                 int h,
+                                 const std::vector<glm::vec3>& dataPoints,
+                                 std::vector<glm::vec3>& controlPoints) const {
+	std::vector<double> ts = curveParametrization(dataPoints);
+	std::vector<double> us = generateKnots(p, h, ts, BSpline::BSplineType::Clamped);
+	BSpline bsp(p, us, BSpline::BSplineType::Clamped);
+	controlPoints = approximateControlPoints(bsp, h, dataPoints, ts);
+	return bsp;
+}
+
+BSplineSurface Fitter::approximateSurface(int p,
+                                          int q,
+                                          int e,
+                                          int f,
+                                          const std::vector<std::vector<glm::vec3>>& dataPoints,
+                                          std::vector<std::vector<glm::vec3>>& controlPoints) const {
+	vector<vector<double>> ts = surfaceParametrization(dataPoints);
+	vector<double> us = generateUniformKnots(p, e, ts[0], BSpline::BSplineType::Clamped);
+	vector<double> vs = generateUniformKnots(q, f, ts[1], BSpline::BSplineType::Clamped);
+	BSplineSurface bs(p, q, us, vs, BSpline::BSplineType::Clamped, BSpline::BSplineType::Clamped);
+	int m = static_cast<int>(dataPoints.size()) - 1, n = static_cast<int>(dataPoints[0].size()) - 1;
+	vector<vector<vec3>> Q(e + 1, vector<vec3>(n + 1));
+	for (int d = 0; d <= n; ++d) {
+		vector<vec3> columnDataPoints(m + 1);
+		for (int i = 0; i <= m; ++i) {
+			columnDataPoints[i] = dataPoints[i][d];
+		}
+		vector<vec3> intermediate = approximateControlPoints(bs.ubsp, e, columnDataPoints, ts[0]);
+		for (int i = 0; i <= e; ++i) {
+			Q[i][d] = intermediate[i];
+		}
+	}
+	controlPoints.resize(e + 1);
+	for (int c = 0; c <= e; ++c) {
+		controlPoints[c] = approximateControlPoints(bs.vbsp, f, Q[c], ts[1]);
 	}
 	return bs;
 }
