@@ -22,18 +22,9 @@ inline void reparameterize(std::vector<double>& ts, const std::vector<double>& u
 
 class Fitter {
 public:
-	enum class ParametrizationMethod {
-		Uniform, Chordal, Centripetal
-	};
-
-	enum class KnotGenerationMethod {
-		Uniform, Average
-	};
-
-	Fitter(ParametrizationMethod pType = ParametrizationMethod::Uniform,
-	       KnotGenerationMethod kType = KnotGenerationMethod::Uniform):
-		parametrizationType(pType),
-		knotGenerationType(kType) {}
+	Fitter(int _pType = 0, int _kType = 0):
+		pType(_pType),
+		kType(_kType) {}
 
 	// ParametrizationMethod
 	std::vector<double> uniformParametrization(const std::vector<glm::vec3>& dataPoints) const;
@@ -41,9 +32,9 @@ public:
 	std::vector<double> centripetalParametrization(const std::vector<glm::vec3>& dataPoints) const;
 
 	// KnotGenerationMethod
-	std::vector<double> generateKnots(int p, int n, std::vector<double>& ts, BSpline::BSplineType bspType) const;
-	std::vector<double> generateUniformKnots(int p, int n, std::vector<double>& ts, BSpline::BSplineType bspType) const;
-	std::vector<double> generateAverageKnots(int p, int n, std::vector<double>& ts, BSpline::BSplineType bspType) const;
+	std::vector<double> generateKnots(int p, int n, std::vector<double>& ts, int bType) const;
+	std::vector<double> generateUniformKnots(int p, int n, std::vector<double>& ts, int bType) const;
+	std::vector<double> generateAverageKnots(int p, int n, std::vector<double>& ts, int bType) const;
 
 	// Parametrization
 	std::vector<double> curveParametrization(const std::vector<glm::vec3>& dataPoints) const;
@@ -57,13 +48,13 @@ public:
 	BSpline interpolateCurve(int p,
 	                         const std::vector<glm::vec3>& dataPoints,
 	                         std::vector<glm::vec3>& controlPoints,
-	                         BSpline::BSplineType type) const;
+	                         int bType) const;
 	BSplineSurface interpolateSurface(int p,
 	                                  int q,
 	                                  const std::vector<std::vector<glm::vec3>>& dataPoints,
 	                                  std::vector<std::vector<glm::vec3>>& controlPoints,
-	                                  BSpline::BSplineType utype,
-	                                  BSpline::BSplineType vtype) const;
+	                                  int uType,
+	                                  int vType) const;
 
 	// approximation
 	std::vector<glm::vec3> approximateControlPoints(const BSpline& bsp,
@@ -81,6 +72,6 @@ public:
 	                                  const std::vector<std::vector<glm::vec3>>& dataPoints,
 	                                  std::vector<std::vector<glm::vec3>>& controlPoints) const;
 
-	ParametrizationMethod parametrizationType;
-	KnotGenerationMethod knotGenerationType;
+	int pType; // 0 = uniform, 1 = chordal, 2 = centripetal;
+	int kType; // 0 = uniform, 1 = average;
 };

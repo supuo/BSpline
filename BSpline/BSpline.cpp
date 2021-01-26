@@ -7,10 +7,10 @@
 using namespace std;
 using namespace glm;
 
-BSpline::BSpline(int _p, const vector<double>& _us, BSplineType _type):
+BSpline::BSpline(int _p, const vector<double>& _us, int _type):
 	p(_p),
 	us(_us),
-	type(_type) {
+	bType(_type) {
 	m = static_cast<int>(us.size()) - 1;
 	n = m - p - 1;
 }
@@ -18,7 +18,7 @@ BSpline::BSpline(int _p, const vector<double>& _us, BSplineType _type):
 vector<double> BSpline::computeCoefficients(double u) const {
 	vector<double> N(n + 1);
 	int k = 0;
-	if (type == BSplineType::Clamped) {
+	if (bType == 1) {
 		if (equal(u, us[p])) {
 			N[0] = 1;
 			return N;
@@ -61,8 +61,8 @@ BSplineSurface::BSplineSurface(int _p,
                                int _q,
                                const vector<double>& us,
                                const vector<double>& vs,
-                               BSpline::BSplineType utype,
-                               BSpline::BSplineType vtype):
+                               int utype,
+                               int vtype):
 	ubsp(_p, us, utype),
 	vbsp(_q, vs, vtype) {}
 

@@ -287,20 +287,20 @@ for (int i = 0; i <= m; ++i) {
 先对曲面的每列进行曲线拟合，得到每列（d）的控制节点$Q_{i,d}$ ,将其作为中间结果数据点组成网格，利用$Q$的每行（c）生成行控制点$P_{c,j}$ ，此为b样条曲面的控制点。
 
 ```cpp
-	for (int d = 0; d <= n; ++d) {
-		vector<vec3> columnDataPoints(m + 1);
-		for (int i = 0; i <= m; ++i) {
-			columnDataPoints[i] = dataPoints[i][d];
-		}
-		vector<vec3> intermediate = computeControlPoints(bs.ubsp, columnDataPoints, ts[0]);
-		for (int i = 0; i <= m; ++i) {
-			Q[i][d] = intermediate[i];
-		}
-	}
-	controlPoints.resize(m + 1);
-	for (int c = 0; c <= m; ++c) {
-		controlPoints[c] = computeControlPoints(bs.vbsp, Q[c], ts[1]);
-	}
+for (int d = 0; d <= n; ++d) {
+    vector<vec3> columnDataPoints(m + 1);
+    for (int i = 0; i <= m; ++i) {
+        columnDataPoints[i] = dataPoints[i][d];
+    }
+    vector<vec3> intermediate = computeControlPoints(bs.ubsp, columnDataPoints, ts[0]);
+    for (int i = 0; i <= m; ++i) {
+        Q[i][d] = intermediate[i];
+    }
+}
+controlPoints.resize(m + 1);
+for (int c = 0; c <= m; ++c) {
+    controlPoints[c] = computeControlPoints(bs.vbsp, Q[c], ts[1]);
+}
 ```
 
 

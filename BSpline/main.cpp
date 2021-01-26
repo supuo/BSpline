@@ -20,22 +20,18 @@ using namespace std;
 using glm::vec3;
 
 namespace {
-	enum class GeometryType {
-		Curve, Surface
-	} gType;
-
 	const int WIDTH = 800;
 	const int HEIGHT = 800;
 	const double PI = acos(-1);
 
-	Fitter fitter(Fitter::ParametrizationMethod::Uniform, Fitter::KnotGenerationMethod::Uniform);
 	vector<vec3>* curveDataPoints;
 	vector<vector<vec3>>* surfaceDataPoints;
 
-	int g_type = 0, p_type = 0, k_type = 0, bc_type = 0, bsu_type = 0, bsv_type = 0;
-	int data_num = 10 , bc_p = 1, bs_p = 1, bs_q = 1, h = 3, e = 5, f = 5;
-	BSpline::BSplineType bc = BSpline::BSplineType::Open, bsu = BSpline::BSplineType::Open, bsv =
-		                     BSpline::BSplineType::Open;
+	int gType = 0; // 0 == curve, 1 == surface
+	int pType = 0, kType = 0, bType = 0, uType = 0, vType = 0;
+	int dataNum = 10, bcP = 1, bsP = 1, bsQ = 1, bcH = 6, bsE = 6, bsF = 6;
+
+	Fitter fitter(pType, kType);
 
 	bool showData = true;
 	bool showControl = true;
@@ -184,10 +180,10 @@ void render(const Shader& shader) {
 	if (showGeometry) {
 		shader.setInt("type", 2);
 		glBindVertexArray(vao[3]);
-		if (gType == GeometryType::Curve) {
+		if (gType == 0) {
 			glDrawElements(GL_LINES, indexSize[3], GL_UNSIGNED_INT, 0);
 		}
-		if (gType == GeometryType::Surface) {
+		if (gType == 1) {
 			glDrawElements(GL_TRIANGLES, indexSize[3], GL_UNSIGNED_INT, 0);
 		}
 	}
@@ -233,10 +229,10 @@ void generateSphere(int n) {
 	}
 }
 
-void bspCurve(int p, const vector<vec3>& dataPoints, BSpline::BSplineType bspType) {
+void bspCurve(int p, const vector<vec3>& dataPoints, int bType) {
 	std::vector<vec3> controlPoints;
-	// auto bc = fitter.interpolateCurve(p, dataPoints, controlPoints, bspType);
-	auto bc = fitter.approximateCurve(p, h, dataPoints, controlPoints);
+	// auto bc = fitter.interpolateCurve(p, dataPoints, controlPoints, bType);
+	auto bc = fitter.approximateCurve(p, bcH, dataPoints, controlPoints);
 
 	error = 0;
 	std::default_random_engine random(static_cast<int>(time(nullptr)));
@@ -268,7 +264,7 @@ void bspCurve(int p, const vector<vec3>& dataPoints, BSpline::BSplineType bspTyp
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, pointIndex.size() * sizeof(int), pointIndex.data(), GL_STATIC_DRAW);
 	indexSize[0] = dataNum;
 	// controlPoints
-	int h =static_cast<int>(controlPoints.size()) - 1;
+	int h = static_cast<int>(controlPoints.size()) - 1;
 	glBindVertexArray(vao[1]);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
 	glBufferData(GL_ARRAY_BUFFER, controlPoints.size() * sizeof(vec3), controlPoints.data(), GL_STATIC_DRAW);
@@ -320,12 +316,12 @@ void bspCurve(int p, const vector<vec3>& dataPoints, BSpline::BSplineType bspTyp
 void bspSurface(int p,
                 int q,
                 const vector<vector<vec3>>& dataPoints,
-                BSpline::BSplineType utype,
-                BSpline::BSplineType vtype) {
+                int uType,
+                int vType) {
 	std::vector<vector<vec3>> controlPoints;
-	// auto bs = fitter.interpolateSurface(p, q, dataPoints, controlPoints, utype, vtype);
-	auto bs = fitter.approximateSurface(p, q, e, f, dataPoints, controlPoints);
-	
+	// auto bs = fitter.interpolateSurface(p, q, dataPoints, controlPoints, uType, vType);
+	auto bs = fitter.approximateSurface(p, q, bsE, bsF, dataPoints, controlPoints);
+
 	error = 0;
 	std::default_random_engine random(static_cast<int>(time(nullptr)));
 	uniform_real_distribution<double> uniformDistribution(0.0, 1.0);
@@ -446,128 +442,111 @@ void processGUI() {
 
 	ImGui::Text("");
 	ImGui::Text("Geometry Type: ");
-	int og_type = g_type;
-	ImGui::RadioButton("circle", &g_type, 0);
+	int ogType = gType;
+	ImGui::RadioButton("circle", &gType, 0);
 	ImGui::SameLine();
-	ImGui::RadioButton("sphere", &g_type, 1);
-	if (og_type != g_type) {
+	ImGui::RadioButton("sphere", &gType, 1);
+	if (ogType != gType) {
 		change = true;
-		if (g_type == 0) gType = GeometryType::Curve;
-		else gType = GeometryType::Surface;
 	}
 
 	ImGui::Text("Parametrization method: ");
-	int op_type = p_type;
-	ImGui::RadioButton("uniform", &p_type, 0);
+	int opType = pType;
+	ImGui::RadioButton("uniform", &pType, 0);
 	ImGui::SameLine();
-	ImGui::RadioButton("chordal", &p_type, 1);
+	ImGui::RadioButton("chordal", &pType, 1);
 	ImGui::SameLine();
-	ImGui::RadioButton("centripetal", &p_type, 2);
-	if (op_type != p_type) {
+	ImGui::RadioButton("centripetal", &pType, 2);
+	if (opType != pType) {
 		change = true;
-		if (p_type == 0) fitter.parametrizationType = Fitter::ParametrizationMethod::Uniform;
-		else if (p_type == 1) fitter.parametrizationType = Fitter::ParametrizationMethod::Chordal;
-		else fitter.parametrizationType = Fitter::ParametrizationMethod::Centripetal;
+		fitter.pType = pType;
 	}
 
-	int odata_num = data_num;
-	ImGui::SliderInt("dataNum", &data_num, 3, maxData);
-	if (odata_num != data_num) {
-		generateCircle(data_num);
-		generateSphere(data_num);
+	int odataNum = dataNum;
+	ImGui::SliderInt("dataNum", &dataNum, 3, maxData);
+	if (odataNum != dataNum) {
+		generateCircle(dataNum);
+		generateSphere(dataNum);
 		change = true;
 	}
 
-	if (g_type == 0) {
-		int obc_type = bc_type;
-		int obc_p = bc_p;
+	if (gType == 0) {
+		int obType = bType;
+		int obcP = bcP;
 		ImGui::Text("b-spline type: ");
-		ImGui::RadioButton("open", &bc_type, 0);
+		ImGui::RadioButton("open", &bType, 0);
 		ImGui::SameLine();
-		ImGui::RadioButton("clamped", &bc_type, 1);
+		ImGui::RadioButton("clamped", &bType, 1);
 		ImGui::SameLine();
-		ImGui::RadioButton("closed", &bc_type, 2);
-		if (obc_type != bc_type) {
+		ImGui::RadioButton("closed", &bType, 2);
+		if (obType != bType) {
 			change = true;
-			if (bc_type == 0) bc = BSpline::BSplineType::Open;
-			else if (bc_type == 1) bc = BSpline::BSplineType::Clamped;
-			else {
-				bc = BSpline::BSplineType::Closed;
-				if (bc_p > data_num / 2) bc_p = min(data_num / 2, 20);
-
+			if (bType == 2) {
+				if (bcP > dataNum / 2) bcP = min(dataNum / 2, 20);
 			}
 		}
-		bc_p = min(bc_p,
-		           bc == BSpline::BSplineType::Closed
-			           ? data_num / 2
-			           : data_num);
+		bcP = min(bcP,
+		          bType == 2
+			          ? dataNum / 2
+			          : dataNum);
 		ImGui::SliderInt("P",
-		                 &bc_p,
+		                 &bcP,
 		                 1,
-		                 min(bc_type == 2
-			                     ? data_num / 2
-			                     : data_num,
+		                 min(bType == 2
+			                     ? dataNum / 2
+			                     : dataNum,
 		                     20));
-		if (obc_p != bc_p) {
+		if (obcP != bcP) {
 			change = true;
 		}
 	} else {
-		int obsu_type = bsu_type, obsv_type = bsv_type;
+		int ouType = uType, ovType = vType;
 		ImGui::Text("uDir BSpline type: ");
-		ImGui::RadioButton("uOpen", &bsu_type, 0);
+		ImGui::RadioButton("uOpen", &uType, 0);
 		ImGui::SameLine();
-		ImGui::RadioButton("uClamped", &bsu_type, 1);
+		ImGui::RadioButton("uClamped", &uType, 1);
 		ImGui::SameLine();
-		ImGui::RadioButton("uClosed", &bsu_type, 2);
+		ImGui::RadioButton("uClosed", &uType, 2);
 		ImGui::Text("vDir bSpline type: ");
-		ImGui::RadioButton("vOpen", &bsv_type, 0);
+		ImGui::RadioButton("vOpen", &vType, 0);
 		ImGui::SameLine();
-		ImGui::RadioButton("vClamped", &bsv_type, 1);
+		ImGui::RadioButton("vClamped", &vType, 1);
 		ImGui::SameLine();
-		ImGui::RadioButton("vClosed", &bsv_type, 2);
-		if (obsu_type != bsu_type || obsv_type != bsv_type) {
+		ImGui::RadioButton("vClosed", &vType, 2);
+		if (ouType != uType || ovType != vType) {
 			change = true;
-			if (bsu_type == 0) bsu = BSpline::BSplineType::Open;
-			else if (bsu_type == 1) bsu = BSpline::BSplineType::Clamped;
-			else {
-				bsu = BSpline::BSplineType::Closed;
-				if (bs_p > data_num / 2) bs_p = min(data_num / 2, 20);
-			}
-			if (bsv_type == 0) bsv = BSpline::BSplineType::Open;
-			else if (bsv_type == 1) bsv = BSpline::BSplineType::Clamped;
-			else {
-				bsv = BSpline::BSplineType::Closed;
-				if (bs_q > data_num / 2) bs_q = min(data_num / 2, 20);
-			}
+			if (uType == 2 && bsP > dataNum / 2) bsP = min(dataNum / 2, 20);
+
+			if (vType == 2 && bsQ > dataNum / 2) bsQ = min(dataNum / 2, 20);
+
 		}
-		bs_p = min(bs_p,
-		           bsu == BSpline::BSplineType::Closed
-			           ? data_num / 2
-			           : data_num);
-		bs_q = min(bs_q,
-		           bsv == BSpline::BSplineType::Closed
-			           ? data_num / 2
-			           : data_num);
-		int obs_p = bs_p, obs_q = bs_q;
+		bsP = min(bsP,
+		          uType == 2
+			          ? dataNum / 2
+			          : dataNum);
+		bsQ = min(bsQ,
+		          vType == 2
+			          ? dataNum / 2
+			          : dataNum);
+		int obs_p = bsP, obs_q = bsQ;
 		ImGui::SliderInt("uP",
-		                 &bs_p,
+		                 &bsP,
 		                 1,
-		                 min(bsu_type == 2
-			                     ? data_num / 2
-			                     : data_num,
+		                 min(uType == 2
+			                     ? dataNum / 2
+			                     : dataNum,
 		                     20));
 		ImGui::SliderInt("vQ",
-		                 &bs_q,
+		                 &bsQ,
 		                 1,
-		                 min(bsv_type == 2
-			                     ? data_num / 2
-			                     : data_num,
+		                 min(vType == 2
+			                     ? dataNum / 2
+			                     : dataNum,
 		                     20));
-		if (obs_p != bs_p || obs_q != bs_q) {
+		if (obs_p != bsP || obs_q != bsQ) {
 			change = true;
 		}
 	}
-
 	ImGui::End();
 }
 
@@ -582,11 +561,9 @@ int main() {
 
 	Shader shader("shader.vert", "shader.frag");
 
-	generateCircle(data_num);
-	generateSphere(data_num);
+	generateCircle(dataNum);
+	generateSphere(dataNum);
 	// auto surfaceDataPoints = generateCylinder(10);
-
-	gType = GeometryType::Curve;
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -602,10 +579,10 @@ int main() {
 
 		if (change) {
 			change = false;
-			if (gType == GeometryType::Curve) {
-				bspCurve(bc_p, *curveDataPoints, bc);
+			if (gType == 0) {
+				bspCurve(bcP, *curveDataPoints, bType);
 			} else {
-				bspSurface(bs_p, bs_q, *surfaceDataPoints, bsu, bsv);
+				bspSurface(bsP, bsQ, *surfaceDataPoints, uType, vType);
 			}
 		}
 
