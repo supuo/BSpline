@@ -45,11 +45,11 @@ public:
 	std::vector<glm::vec3> interpolateControlPoints(const BSpline& bsp,
 	                                                const std::vector<glm::vec3>& dataPoints,
 	                                                const std::vector<double>& ts) const;
-	BSpline interpolateCurve(int p,
-	                         const std::vector<glm::vec3>& dataPoints,
-	                         std::vector<glm::vec3>& controlPoints,
-	                         int bType) const;
-	BSplineSurface interpolateSurface(int p,
+	::BSpline* interpolateCurve(int p,
+	                            const std::vector<glm::vec3>& dataPoints,
+	                            std::vector<glm::vec3>& controlPoints,
+	                            int bType) const;
+	BSplineSurface* interpolateSurface(int p,
 	                                  int q,
 	                                  const std::vector<std::vector<glm::vec3>>& dataPoints,
 	                                  std::vector<std::vector<glm::vec3>>& controlPoints,
@@ -61,17 +61,17 @@ public:
 	                                                int h,
 	                                                const std::vector<glm::vec3>& dataPoints,
 	                                                const std::vector<double>& ts) const;
-	BSpline approximateCurve(int p,
+	BSpline* approximateCurve(int p,
 	                         int h,
 	                         const std::vector<glm::vec3>& dataPoints,
 	                         std::vector<glm::vec3>& controlPoints) const;
-	BSplineSurface approximateSurface(int p,
+	BSplineSurface* approximateSurface(int p,
 	                                  int q,
 	                                  int e,
 	                                  int f,
 	                                  const std::vector<std::vector<glm::vec3>>& dataPoints,
 	                                  std::vector<std::vector<glm::vec3>>& controlPoints) const;
 
-	int pType; // 0 = uniform, 1 = chordal, 2 = centripetal;
-	int kType; // 0 = uniform, 1 = average;
+	int pType; // 0 == uniform, 1 == chordal, 2 == centripetal;
+	int kType; // 0 == uniform, 1 == average;
 };
