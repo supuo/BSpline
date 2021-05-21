@@ -24,8 +24,6 @@
 
 ## 二、使用方法
 
-<img src="C:\Users\supuo\AppData\Roaming\Typora\typora-user-images\image-20210124153059792.png" alt="image-20210124153059792" style="zoom: 50%;" />
-
 本程序可以直接使用GUI进行交互，可以选择b样条曲线拟合圆或b样条曲面拟合球，提供`uniform`、`chordal`、`centripetal`三种参数化方式，`uniform`、`average`两种节点向量生成方式，`open`、`clamped`、`closed`三种b样条类型，可以自选插入的数据点和b样条阶数。
 
 - 按`z`切换显示拟合出的几何图形
@@ -339,13 +337,6 @@ return ubsp(intermediate, u);
 - 在一定范围内，阶数越高，所得几何图形与原图形误差越小，结束过高会产生大幅波动（龙格现象）。由于绘制点间距为0.01，因此可能部分拟合失效情况不能直观显示，但控制面板中有对每维度均匀随机采样100个数据点的误差可显示该情况。
 
 - 对于不同B样条类型，open在阶数变高情况下最早失效，clamped情况次之，closed类型b样条在每维度100数据点，双向20阶情况下仍能保证非常完美的拟合，效果最好。
-
-  <img src="C:\Users\supuo\AppData\Roaming\Typora\typora-user-images\image-20210124153835130.png" alt="image-20210124153835130" style="zoom: 50%;" />
-
-  <img src="C:\Users\supuo\AppData\Roaming\Typora\typora-user-images\image-20210124153900163.png" alt="image-20210124153900163" style="zoom: 50%;" />
-
-  <img src="C:\Users\supuo\AppData\Roaming\Typora\typora-user-images\image-20210124153924398.png" alt="image-20210124153924398" style="zoom: 50%;" />
-  
   
 
 
